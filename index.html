@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <link rel="stylesheet" href="/public/css/index.css">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+   <title>AiFlix - Film Önerileri</title>
+   <style>
+      #backgroundVideo {
+         position: fixed;
+         right: 0;
+         bottom: 0;
+         min-width: 100%;
+         min-height: 100%;
+         width: auto;
+         height: auto;
+         z-index: -1000;
+         object-fit: cover;
+      }
+
+      body {
+         background-color: rgba(0, 0, 0, 0.4);
+         position: relative;
+      }
+
+      body::before {
+         content: '';
+         position: fixed;
+         top: 0;
+         left: 0;
+         width: 100%;
+         height: 100%;
+         background-color: rgba(0, 0, 0, 0.4);
+         z-index: -999;
+      }
+
+      .header {
+         position: relative;
+         height: 100vh;
+         display: flex;
+         justify-content: center;
+         align-items: center;
+         overflow: hidden;
+      }
+
+      .header-content {
+         text-align: center;
+         color: white;
+         z-index: 1;
+         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      }
+
+      .header-content h1 {
+         font-size: 4em;
+         margin-bottom: 20px;
+      }
+
+      .header-content h3 {
+         font-size: 2em;
+      }
+
+      .post {
+         background-color: rgba(255, 255, 255, 0.9) !important;
+      }
+
+      .area {
+         background-color: rgba(255, 255, 255, 0.9) !important;
+      }
+
+      .home {
+         padding: 20px;
+      }
+
+      .post {
+         background-color: rgba(255, 255, 255, 0.9) !important;
+         margin-bottom: 30px;
+         border-radius: 15px;
+         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .sidebar {
+         position: fixed;
+         right: 20px;
+         top: 100px;
+         width: 25%;
+      }
+
+      .area {
+         background-color: rgba(255, 255, 255, 0.9) !important;
+         margin-bottom: 20px;
+         border-radius: 15px;
+         padding: 20px;
+         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .posts-container {
+         display: none; /* İkinci posts container'ı gizle */
+      }
+
+      .topbar {
+         background: rgba(0, 0, 0, 0.3) !important;
+         backdrop-filter: blur(5px);
+      }
+
+      .topbar .wrapper {
+         background: transparent !important;
+      }
+
+      .topbar .center a {
+         background: linear-gradient(90deg, #ff6b08, #2196f3);
+         -webkit-background-clip: text;
+         background-clip: text;
+         color: transparent;
+         font-weight: bold;
+         transition: all 0.3s ease;
+      }
+
+      .topbar .center a:hover {
+         text-shadow: 0 0 10px rgba(255, 107, 8, 0.5);
+         transform: scale(1.05);
+      }
+
+      .topbar .left i {
+         background: linear-gradient(90deg, #ff6b08, #2196f3);
+         -webkit-background-clip: text;
+         background-clip: text;
+         color: transparent;
+         transition: all 0.3s ease;
+         font-size: 20px;
+         margin: 0 10px;
+      }
+
+      .topbar .left i:hover {
+         text-shadow: 0 0 10px rgba(255, 107, 8, 0.5);
+         transform: scale(1.15);
+      }
+
+      .searchEngine input::placeholder {
+         background: linear-gradient(90deg, #ff6b08, #2196f3);
+         -webkit-background-clip: text;
+         background-clip: text;
+         color: transparent;
+      }
+   </style>
+</head>
+
+<body>
+   <video autoplay muted loop id="backgroundVideo">
+      <source src="/public/img/background/backgroundvideo.mp4" type="video/mp4">
+   </video>
+
+   <div class="topbar">
+      <div class="wrapper target">
+         <div class="left">
+            <i class="fa-solid fa-film"></i>
+            <i class="fa-solid fa-scissors"></i>
+            <i class="fa-solid fa-photo-film"></i>
+            <i class="fa-solid fa-video"></i>
+         </div>
+         <div class="center">
+            <a href="/">ANASAYFA</a>
+            <a href="pages/cinebot.html">CINEBOT</a>
+            <a href="pages/register.html">KAYIT OL</a>
+            <a href="pages/login.html">GİRİŞ YAP</a>
+            <a href="pages/add.html">YAZI EKLE</a>
+         </div>
+         <div class="right">
+            <span id="userProfileContainer">
+               <i class="fa-solid fa-user" style="color: #fff; font-size: 24px;"></i>
+            </span>
+            <div class="searchEngine" id="searchEngine">
+               <input type="text" placeholder="...">
+               <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
+            </div>
+         </div>
+      </div>
+   </div>
+
+   <div class="welcome-container" style="text-align: center; padding: 50px 20px; margin: 20px auto; max-width: 1200px; background: rgba(0, 0, 0, 0.3); border-radius: 15px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);">
+      <h1 style="font-size: 3.8em; margin-bottom: 30px; font-weight: 800; display: inline-block; letter-spacing: 1px; font-family: 'Segoe UI', Arial, sans-serif;">
+         <span style="background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">AIFlix'e Hoş Geldiniz!</span> 🎬✨
+      </h1>
+      <p style="font-size: 1.4em; line-height: 1.8; margin: 0 auto; max-width: 900px; font-weight: 500; letter-spacing: 0.5px; font-family: 'Segoe UI', Arial, sans-serif;">
+         <span style="background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">Film tutkunları için özel olarak tasarlanmış AIFlix, sinema deneyiminizi bir üst seviyeye taşıyor! Burada en sevdiğiniz filmler hakkında postlar paylaşabilir, diğer sinemaseverlerle yorumlarınızı tartışabilir ve keşfedilmeyi bekleyen harika yapımları keşfedebilirsiniz. CineBot sayesinde, sadece istediğiniz filmi yazarak, yapay zeka destekli öneriler alabilir ve ruh halinize, tür tercihinize veya ilginç keşiflere göre yeni favori filminizi bulabilirsiniz. AIFlix ile sinema dünyasına dalın ve keşfin keyfini çıkarın!</span> 🎥🍿
+      </p>
+   </div>
+
+   <div class="home" style="margin-top: 20px;">
+      <div class="wrapper" style="display: flex; justify-content: flex-start; max-width: 1200px; margin: 0 auto; gap: 20px;">
+         <div class="posts" style="width: 70%; padding: 20px 0; margin: 0;">
+            <div class="post target" style="background: rgba(255, 255, 255, 0.9); padding: 25px; margin-bottom: 30px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+               <h1>Film 1</h1>
+               <img src="/public/img/background/aitiyatro2.jpg" alt="content">
+               <p>
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Odio saepe quis, illo obcaecati suscipit quod
+                  nulla maiores, dolore, debitis esse deleniti quisquam nisi dolorem ullam! Recusandae enim officiis
+                  nulla fuga!
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Doloremque alias harum aspernatur veniam
+                  libero possimus a aut ea necessitatibus ipsum, blanditiis illo tempora nulla perferendis, magni enim
+                  consequatur ut earum?
+               </p>
+               <div class="authorAndDate">
+                <span>Affan Emirhan Çüçen</span>
+                <span>17.03.2025</span>
+               </div>
+            </div>
+
+            <div class="post target" style="background: rgba(255, 255, 255, 0.9); padding: 25px; margin-bottom: 30px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+               <h1>Film 2</h1>
+               <img src="/public/img/background/aitiyatro2.jpg" alt="content">
+               <p>
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Odio saepe quis, illo obcaecati suscipit quod
+                  nulla maiores, dolore, debitis esse deleniti quisquam nisi dolorem ullam! Recusandae enim officiis
+                  nulla fuga!
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Doloremque alias harum aspernatur veniam
+                  libero possimus a aut ea necessitatibus ipsum, blanditiis illo tempora nulla perferendis, magni enim
+                  consequatur ut earum?
+               </p>
+               <div class="authorAndDate">
+                <span>Affan Emirhan Çüçen</span>
+                <span>17.03.2025</span>
+               </div>
+            </div>
+
+            <div class="post target" style="background: rgba(255, 255, 255, 0.9); padding: 25px; margin-bottom: 30px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+               <h1>film 3</h1>
+               <img src="/public/img/background/aitiyatro2.jpg" alt="content">
+               <p>
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Odio saepe quis, illo obcaecati suscipit quod
+                  nulla maiores, dolore, debitis esse deleniti quisquam nisi dolorem ullam! Recusandae enim officiis
+                  nulla fuga!
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Doloremque alias harum aspernatur veniam
+                  libero possimus a aut ea necessitatibus ipsum, blanditiis illo tempora nulla perferendis, magni enim
+                  consequatur ut earum?
+               </p>
+               <div class="authorAndDate">
+                <span>Affan Emirhan Çüçen</span>
+                <span>17.03.2025</span>
+               </div>
+            </div>
+
+            <div class="post target" style="background: rgba(255, 255, 255, 0.9); padding: 25px; margin-bottom: 30px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+               <h1>Film 4</h1>
+               <img src="/public/img/background/aitiyatro2.jpg" alt="content">
+               <p>
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Odio saepe quis, illo obcaecati suscipit quod
+                  nulla maiores, dolore, debitis esse deleniti quisquam nisi dolorem ullam! Recusandae enim officiis
+                  nulla fuga!
+                  Lorem ipsum dolor sit amet consectetur adipisicing elit. Doloremque alias harum aspernatur veniam
+                  libero possimus a aut ea necessitatibus ipsum, blanditiis illo tempora nulla perferendis, magni enim
+                  consequatur ut earum?
+               </p>
+               <div class="authorAndDate">
+                  <span>Affan Emirhan Çüçen</span>
+                  <span>17.03.2025</span>
+               </div>
+            </div>
+         </div>
+
+         <div class="sidebar" style="position: static; width: 25%; margin: 0;">
+            <div class="area target" style="text-align: center; padding: 30px 20px;">
+               <div id="sidebarProfileContainer" style="margin-bottom: 20px;">
+                  <i class="fa-solid fa-user" style="color: #333; font-size: 64px;"></i>
+               </div>
+               <h3 style="margin: 15px 0; font-size: 1.4em; color: #333;">Hoşgeldin, <span id="username" style="color: #ff6b08; font-weight: bold;">Misafir</span></h3>
+               <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <a id="addPostBtn" href="#" style="display: inline-block; padding: 10px 20px; background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: all 0.3s ease;">YAZI EKLE</a>
+                  <a href="/pages/cinebot.html" style="display: inline-block; padding: 10px 20px; background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: all 0.3s ease;">FİLM ÖNERİSİ AL</a>
+                  <button id="logoutBtn" style="padding: 10px 20px; background: rgba(255, 107, 8, 0.9); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; display: none;">ÇIKIŞ YAP</button>
+               </div>
+            </div>
+         </div>
+      </div>
+   </div>
+   <div class="posts-container">
+      <h2>Yazılar</h2>
+      <div id="postsList">
+          <!-- Burada yazılar görüntülenecek -->
+      </div>
+  </div>
+  
+  <script>
+      window.onload = function() {
+          // localStorage'dan yazıları al
+          let posts = JSON.parse(localStorage.getItem("posts")) || [];
+  
+          // Eğer yazılar varsa, her birini listele
+          if (posts.length > 0) {
+              let postsList = document.getElementById("postsList");
+              posts.forEach(function(post) {
+                  let postElement = document.createElement("div");
+                  postElement.classList.add("post");
+  
+                  // Yazı başlığını, içeriğini ve yazar adını göster
+                  postElement.innerHTML = `<h3>${post.title}</h3><p>${post.content}</p><small>${post.author}</small>`;
+                  postsList.appendChild(postElement);
+              });
+          } else {
+              document.getElementById("postsList").textContent = "Henüz eklenmiş yazı yok.";
+          }
+      };
+  </script>
+  
+   
+
+   <script src="/public/js/script.js"></script>
+   <script src="/public/js/search.js"></script>
+   <script src="/public/js/scroll.js"></script>
+   <script>
+      window.onload = function() {
+         // localStorage'dan giriş yapan kullanıcının bilgilerini al
+         let loggedInUser = localStorage.getItem("loggedInUser");
+         let userProfilePicture = localStorage.getItem("userProfilePicture");
+
+         // Yazı ekle butonunu seç
+         const addPostBtn = document.getElementById("addPostBtn");
+
+         // Eğer kullanıcı giriş yapmışsa
+         if (loggedInUser) {
+            document.getElementById("username").textContent = loggedInUser;
+            document.getElementById("logoutBtn").style.display = "block";
+            // Giriş yapmış kullanıcı için yazı ekle sayfasına yönlendir
+            addPostBtn.href = "/pages/add.html";
+
+            // Profil fotoğraflarını güncelle
+            if (userProfilePicture) {
+               // Üst menüdeki profil fotoğrafı
+               document.getElementById("userProfileContainer").innerHTML = `
+                  <img src="${userProfilePicture}" alt="user" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+               `;
+               
+               // Sidebar'daki profil fotoğrafı
+               document.getElementById("sidebarProfileContainer").innerHTML = `
+                  <img src="${userProfilePicture}" alt="user" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin-bottom: 10px;">
+               `;
+            }
+         } else {
+            document.getElementById("username").textContent = "Misafir";
+            document.getElementById("logoutBtn").style.display = "none";
+            // Giriş yapmamış kullanıcı için login sayfasına yönlendir
+            addPostBtn.href = "/pages/login.html";
+         }
+
+         // Çıkış yap butonuna tıklanınca
+         document.getElementById("logoutBtn").onclick = function() {
+            // localStorage'dan kullanıcı bilgilerini temizle
+            localStorage.removeItem("loggedInUser");
+            localStorage.removeItem("userProfilePicture");
+            // Sayfayı yeniden yükle
+            window.location.href = "/";
+         };
+      };
+   </script>
+</body>
+
+</html>

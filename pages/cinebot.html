@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Film Önerileri - AiFlix</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: url('/public/img/background/aicinemascreen.jpg') no-repeat center center fixed;
+            background-size: cover;
+            position: relative;
+            overflow-x: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Film şeridi animasyonu */
+        .film-strip {
+            display: none;
+        }
+
+        /* Projektör ışığı efekti */
+        .projector-light {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1200px;
+            height: 1200px;
+            background: radial-gradient(
+                circle,
+                rgba(255, 147, 7, 0.1) 0%,
+                transparent 70%
+            );
+            animation: rotateLight 20s linear infinite;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* AI Robot animasyonları */
+        .floating-robot {
+            display: none;
+        }
+
+        #robot1, #robot2, #movieRobot {
+            display: none;
+        }
+
+        /* Ana içerik konteyner */
+        .cinebot-container {
+            position: relative;
+            z-index: 4;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 12px 30px;
+            border-radius: 15px;
+            margin: 0 auto;
+            width: 450px;
+            max-width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.5s ease-in-out;
+            transform: translateY(-27%);
+        }
+
+        .cinebot-container.expanded {
+            width: 800px;
+            transform: translateY(0);
+            padding: 30px;
+        }
+
+        .cinebot-container h2 {
+            font-size: 1.4em;
+            margin-bottom: 10px;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .cinebot-container.expanded h2 {
+            font-size: 2em;
+            margin-bottom: 25px;
+        }
+
+        .movie-details {
+            background: rgba(255, 255, 255, 0.95) !important;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .movie-details h2 {
+            color: #4a90e2;
+            font-size: 2em;
+            margin: 10px 0 20px;
+            text-shadow: 2px 2px 4px rgba(35, 166, 213, 0.3);
+        }
+
+        .movie-details-content {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .movie-details img {
+            width: 200px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
+        }
+
+        .movie-details-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .movie-details p {
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .suggestions-container {
+            background: transparent;
+            margin-top: 20px;
+        }
+
+        .suggestions-text h3 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 22px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a90e2;
+        }
+
+        .suggestions-text p {
+            color: #000;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #4a90e2;
+        }
+
+        .suggestion-item {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #4a90e2;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .suggestion-item img {
+            width: 100px;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .suggestion-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .suggestion-content strong {
+            display: block;
+            color: #1976d2;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .suggestion-content span {
+            color: #333;
+            display: block;
+            line-height: 1.5;
+        }
+
+        label {
+            display: block;
+            margin: 6px 0 3px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 8px;
+            background-color: rgba(0, 0, 0, 0.7) !important;
+            color: #fff !important;
+            transition: all 0.3s ease;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #23a6d5;
+            box-shadow: 0 0 0 3px rgba(35, 166, 213, 0.2);
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        select {
+            appearance: none;
+        }
+
+        select option {
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #fff;
+        }
+
+        button {
+            background: rgba(74, 144, 226, 0.7) !important;
+            color: white;
+            border: none !important;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: rgba(74, 144, 226, 0.9) !important;
+            transform: translateY(-2px);
+        }
+
+        h2 {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #movieInput {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            border: 2px solid #4a90e2;
+        }
+
+        .loading {
+            color: white;
+            font-size: 18px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 600px) {
+            .movie-details-content,
+            .suggestions-text p {
+                flex-direction: column;
+            }
+
+            .movie-details img,
+            .suggestions-text p img {
+                width: 100%;
+                max-width: 300px;
+                margin: 0 auto 15px;
+                display: block;
+            }
+
+            .suggestion-item {
+                flex-direction: column;
+            }
+
+            .suggestion-item img {
+                width: 100%;
+                max-width: 200px;
+                margin: 0 auto 15px;
+            }
+        }
+
+        /* Animasyonlar */
+        @keyframes rotateLight {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+
+        .selected-movie-title {
+            color: #4a90e2;
+            font-size: 1.4em;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #4a90e2;
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+        .movie-description {
+            margin-top: 10px;
+        }
+
+        .description-title {
+            display: block;
+            color: #4a90e2;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 1.1em;
+        }
+
+        .description-text {
+            color: #333;
+            display: block;
+            line-height: 1.5;
+            text-align: justify;
+        }
+
+        .translated-text {
+            display: inline-block;
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+            margin-left: 5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            opacity: 0.8;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .input-group .input-container {
+            flex: 1 1 50%;
+            width: 50%;
+        }
+
+        .input-container.number-input,
+        .input-container.genre-input {
+            flex: 1 1 50%;
+            width: 50%;
+        }
+
+        .input-container label {
+            margin-bottom: 8px;
+            white-space: nowrap;
+        }
+
+        input[type="number"], select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #suggestionsContainer {
+            opacity: 0;
+            height: 0;
+            overflow: hidden;
+            transition: all 0.5s ease-in-out;
+        }
+
+        #suggestionsContainer.visible {
+            opacity: 1;
+            height: auto;
+            overflow: visible;
+        }
+    </style>
+</head>
+<body>
+    <!-- Arka plan efektleri -->
+    <div class="film-strip"></div>
+    <div class="projector-light"></div>
+
+    
+
+    <div class="cinebot-container">
+        <h2>Film Önerisi Al</h2>
+        
+        <label for="movieInput">İzlediğiniz Film:</label>
+        <input type="text" id="movieInput" placeholder="Film Adı">
+        
+        <div class="input-group">
+            <div class="input-container number-input">
+                <label for="numberOfSuggestions">Kaç adet öneri istersiniz?</label>
+                <input type="number" id="numberOfSuggestions" min="1" max="10" value="3">
+            </div>
+            
+            <div class="input-container genre-input">
+                <label for="genreSelect">Film Kategorisi:</label>
+                <select id="genreSelect">
+                    <option value="action">Aksiyon</option>
+                    <option value="adventure">Macera</option>
+                    <option value="horror">Korku</option>
+                    <option value="comedy">Komedi</option>
+                    <option value="drama">Drama</option>
+                    <option value="sci-fi">Bilim Kurgu</option>
+                </select>
+            </div>
+        </div>
+
+        <button onclick="getMovieSuggestions()">Öner</button>
+        
+        <div id="suggestionsContainer">
+            <!-- Burada öneriler gösterilecek -->
+        </div>
+    </div>
+    
+    <script src="/public/js/cinebot.js"></script>
+</body>
+</html>
