@@ -35,7 +35,8 @@ async function getMovieSuggestions() {
         });
 
         if (!response.ok) {
-            throw new Error('Film önerileri alınamadı');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Film önerileri alınamadı');
         }
 
         const data = await response.json();
@@ -43,7 +44,7 @@ async function getMovieSuggestions() {
 
     } catch (error) {
         console.error('Error:', error);
-        alert('Film önerileri alınırken bir hata oluştu.');
+        alert(error.message || 'Film önerileri alınırken bir hata oluştu.');
         // Hata durumunda konteyner boyutunu küçült
         document.querySelector('.cinebot-container').classList.remove('expanded');
     }

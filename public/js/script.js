@@ -1,9 +1,30 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const username = localStorage.getItem("username");
-    if (username) {
-        document.getElementById("username")?.textContent = username;
+    // Kullanıcı profil bilgilerini kontrol et
+    const loggedInUser = localStorage.getItem("loggedInUser");
+    const userProfilePicture = localStorage.getItem("userProfilePicture");
+    
+    if (loggedInUser) {
+        const userProfileContainer = document.getElementById("userProfileContainer");
+        if (userProfileContainer) {
+            userProfileContainer.innerHTML = `
+                <div class="user-profile">
+                    <img src="${userProfilePicture || '/public/img/user/user-1.jpg'}" alt="Profil" class="profile-picture">
+                    <span class="username">${loggedInUser}</span>
+                </div>
+            `;
+        }
     }
 });
+
+// Arama motoru işlevselliği
+const searchEngine = document.getElementById("searchEngine");
+const searchIcon = document.getElementById("searchIcon");
+
+if (searchIcon && searchEngine) {
+    searchIcon.addEventListener("click", function() {
+        searchEngine.classList.toggle("active");
+    });
+}
 
 // Kayıt Ol Fonksiyonu
 function register() {
