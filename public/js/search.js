@@ -1,7 +1,9 @@
-const searchIcon = document.getElementById('searchIcon')
-const searchEngine = document.getElementById('searchEngine')
+// Eğer searchIcon zaten tanımlanmamışsa tanımla
+if (typeof window.searchIcon === 'undefined') {
+    window.searchIcon = document.getElementById('searchIcon');
+    window.searchEngine = document.getElementById('searchEngine');
 
-
-searchIcon.addEventListener('click', ()=>{
-   searchEngine.classList.toggle('active')
-})
+    window.searchIcon.addEventListener('click', () => {
+        window.searchEngine.classList.toggle('active');
+    });
+}
