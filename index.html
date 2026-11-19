@@ -548,67 +548,85 @@
           console.warn("Firebase başlatma uyarısı:", fbInitErr.message);
       }
 
+      const DEFAULT_SOZLUK_ITEMS = [
+          { id: 'demo-1', title: "Interstellar'ın Sonu: Cooper Nereye Gitti?", content: "Beşinci boyut varlıkları aslında gelecekteki insanlığın ta kendisi miydi? Tesseract sahnesindeki zaman kırılması...", author: "KozmikSinema", authorImage: "/public/img/user/user-1.jpg", likes: 42, commentsCount: 4 },
+          { id: 'demo-2', title: "Inception Topaç Dönmeye Devam Etti mi?", content: "Christopher Nolan'ın filmin sonunda topacı tam duracakken kesmesi rüyada mı yoksa gerçekte mi olduğunu gösteriyor?", author: "SinemaSever99", authorImage: "/public/img/user/userwoman1.jpg", likes: 35, commentsCount: 2 },
+          { id: 'demo-3', title: "Dune: Part Two Sinematografisi ve Ses Tasarımı", content: "Denis Villeneuve ve Greig Fraser ortaklığı görsel bir şölene imza atmış. Özellikle kızılötesi gladyatör sahnesi...", author: "ArrakisKumKurdu", authorImage: "/public/img/user/userman1.jpg", likes: 29, commentsCount: 1 },
+          { id: 'demo-4', title: "Fight Club: Tyler Durden Gerçekten Kimdi?", content: "Modern toplumun tüketim çılgınlığı ve bireyin kimlik arayışı üzerine gelmiş geçmiş en çarpıcı başyapıtlardan biri.", author: "SinematikZihin", authorImage: "/public/img/user/userwoman2.jpg", likes: 24, commentsCount: 3 }
+      ];
+
+      function renderPreviewCards(items) {
+          const previewContainer = document.getElementById('filmsözlükPreview');
+          if (!previewContainer || !items) return;
+
+          previewContainer.innerHTML = '';
+          items.forEach((entry) => {
+              const previewElement = document.createElement('div');
+              previewElement.style.cssText = `
+                  background: rgba(255, 255, 255, 0.05);
+                  padding: 16px;
+                  border-radius: 12px;
+                  border: 1px solid rgba(255, 255, 255, 0.08);
+                  cursor: pointer;
+                  transition: all 0.3s ease;
+                  display: flex;
+                  flex-direction: column;
+              `;
+              previewElement.onmouseenter = () => {
+                  previewElement.style.borderColor = '#ff6b08';
+                  previewElement.style.transform = 'translateY(-3px)';
+              };
+              previewElement.onmouseleave = () => {
+                  previewElement.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  previewElement.style.transform = 'none';
+              };
+              previewElement.onclick = () => window.location.href = '/filmsozluk?id=' + (entry.id || '');
+
+              const commentsCount = typeof entry.commentsCount === 'number' ? entry.commentsCount : (entry.comments ? entry.comments.length : 0);
+
+              previewElement.innerHTML = `
+                  <h4 style="color: #fff; margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700;">${entry.title}</h4>
+                  <p style="color: rgba(255, 255, 255, 0.75); margin: 0 0 12px 0; font-size: 0.85rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1;">${entry.content}</p>
+                  <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                          <img src="${entry.authorImage || '/public/img/user/user-1.jpg'}" alt="${entry.author}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover;">
+                          <span>${entry.author || 'Anonim'}</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                          <span><i class="fa-solid fa-heart" style="color: #ff6b6b;"></i> ${entry.likes || 0}</span>
+                          <span><i class="fa-solid fa-comment" style="color: #64b5f6;"></i> ${commentsCount}</span>
+                      </div>
+                  </div>
+              `;
+              previewContainer.appendChild(previewElement);
+          });
+      }
+
       async function loadFilmSözlükPreview(db) {
           const previewContainer = document.getElementById('filmsözlükPreview');
-          if (!previewContainer || !db) return;
+          if (!previewContainer) return;
 
           try {
+              if (!db) {
+                  renderPreviewCards(DEFAULT_SOZLUK_ITEMS);
+                  return;
+              }
               const entriesQuery = query(collection(db, "entries"), limit(4));
               const querySnapshot = await getDocs(entriesQuery);
               
               if (querySnapshot.empty) {
-                  previewContainer.innerHTML = `
-                      <div style="grid-column: 1 / -1; text-align: center; padding: 25px; color: rgba(255,255,255,0.7);">
-                          <i class="fa-solid fa-comments" style="font-size: 2.2rem; color: #ff6b08; margin-bottom: 10px;"></i>
-                          <p style="margin: 0 0 10px;">Henüz hiç film tartışması başlatılmamış.</p>
-                          <a href="/filmsozluk" style="color: #2196f3; font-weight: bold; text-decoration: none;">İlk tartışmayı siz başlatın! &rarr;</a>
-                      </div>
-                  `;
+                  renderPreviewCards(DEFAULT_SOZLUK_ITEMS);
                   return;
               }
 
-              previewContainer.innerHTML = '';
+              const items = [];
               querySnapshot.forEach((doc) => {
-                  const entry = doc.data();
-                  const previewElement = document.createElement('div');
-                  previewElement.style.cssText = `
-                      background: rgba(255, 255, 255, 0.05);
-                      padding: 16px;
-                      border-radius: 12px;
-                      border: 1px solid rgba(255, 255, 255, 0.08);
-                      cursor: pointer;
-                      transition: all 0.3s ease;
-                      display: flex;
-                      flex-direction: column;
-                  `;
-                  previewElement.onmouseenter = () => {
-                      previewElement.style.borderColor = '#ff6b08';
-                      previewElement.style.transform = 'translateY(-3px)';
-                  };
-                  previewElement.onmouseleave = () => {
-                      previewElement.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                      previewElement.style.transform = 'none';
-                  };
-                  previewElement.onclick = () => window.location.href = '/filmsozluk?id=' + doc.id;
-
-                  previewElement.innerHTML = `
-                      <h4 style="color: #fff; margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700;">${entry.title}</h4>
-                      <p style="color: rgba(255, 255, 255, 0.75); margin: 0 0 12px 0; font-size: 0.85rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1;">${entry.content}</p>
-                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
-                          <div style="display: flex; align-items: center; gap: 6px;">
-                              <img src="${entry.authorImage || '/public/img/user/user-1.jpg'}" alt="${entry.author}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover;">
-                              <span>${entry.author || 'Anonim'}</span>
-                          </div>
-                          <div style="display: flex; align-items: center; gap: 8px;">
-                              <span><i class="fa-solid fa-heart" style="color: #ff6b6b;"></i> ${entry.likes || 0}</span>
-                              <span><i class="fa-solid fa-comment" style="color: #64b5f6;"></i> ${entry.comments ? entry.comments.length : 0}</span>
-                          </div>
-                      </div>
-                  `;
-                  previewContainer.appendChild(previewElement);
+                  items.push({ id: doc.id, ...doc.data() });
               });
+              renderPreviewCards(items);
           } catch (error) {
-              console.error("FilmSözlük önizleme hatası:", error);
+              console.warn("FilmSözlük önizleme uyarısı (İzin veya Ağ):", error.message);
+              renderPreviewCards(DEFAULT_SOZLUK_ITEMS);
           }
       }
    </script>
