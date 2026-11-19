@@ -8,7 +8,7 @@
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
       integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
       crossorigin="anonymous" referrerpolicy="no-referrer" />
-   <title>AiFlix - Film Önerileri</title>
+   <title>AiFlix - Yapay Zeka Destekli Film Platformu</title>
    <style>
       #backgroundVideo {
          position: fixed;
@@ -23,8 +23,12 @@
       }
 
       body {
-         background-color: rgba(0, 0, 0, 0.4);
+         background-color: rgba(10, 15, 29, 0.85);
          position: relative;
+         margin: 0;
+         padding: 0;
+         color: #fff;
+         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       }
 
       body::before {
@@ -34,76 +38,14 @@
          left: 0;
          width: 100%;
          height: 100%;
-         background-color: rgba(0, 0, 0, 0.4);
+         background: radial-gradient(circle at center, rgba(10, 15, 29, 0.6) 0%, rgba(10, 15, 29, 0.95) 100%);
          z-index: -999;
       }
 
-      .header {
-         position: relative;
-         height: 100vh;
-         display: flex;
-         justify-content: center;
-         align-items: center;
-         overflow: hidden;
-      }
-
-      .header-content {
-         text-align: center;
-         color: white;
-         z-index: 1;
-         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-      }
-
-      .header-content h1 {
-         font-size: 4em;
-         margin-bottom: 20px;
-      }
-
-      .header-content h3 {
-         font-size: 2em;
-      }
-
-      .post {
-         background-color: rgba(255, 255, 255, 0.9) !important;
-      }
-
-      .area {
-         background-color: rgba(255, 255, 255, 0.9) !important;
-      }
-
-      .home {
-         padding: 20px;
-      }
-
-      .post {
-         background-color: rgba(255, 255, 255, 0.9) !important;
-         margin-bottom: 30px;
-         border-radius: 15px;
-         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      }
-
-      .sidebar {
-         position: fixed;
-         right: 20px;
-         top: 100px;
-         width: 25%;
-      }
-
-      .area {
-         background-color: rgba(255, 255, 255, 0.9) !important;
-         margin-bottom: 20px;
-         border-radius: 15px;
-         padding: 20px;
-         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      }
-
-      .posts-container {
-         display: none; /* İkinci posts container'ı gizle */
-      }
-
       .topbar {
-         background: rgba(0, 0, 0, 0.3) !important;
-         backdrop-filter: blur(5px);
+         background: rgba(10, 15, 29, 0.75) !important;
+         backdrop-filter: blur(12px);
+         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       }
 
       .topbar .wrapper {
@@ -134,25 +76,230 @@
          margin: 0 10px;
       }
 
-      .topbar .left i:hover {
-         text-shadow: 0 0 10px rgba(255, 107, 8, 0.5);
-         transform: scale(1.15);
+      .welcome-hero {
+         text-align: center;
+         padding: 50px 25px 40px;
+         margin: 90px auto 30px;
+         max-width: 1100px;
+         background: rgba(18, 24, 43, 0.75);
+         border-radius: 20px;
+         box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+         backdrop-filter: blur(16px);
+         border: 1px solid rgba(255, 255, 255, 0.1);
       }
 
-      .searchEngine input::placeholder {
+      .welcome-hero h1 {
+         font-size: 3.2rem;
+         margin: 0 0 15px;
+         font-weight: 800;
+         background: linear-gradient(90deg, #ff6b08, #2196f3);
+         -webkit-background-clip: text;
+         background-clip: text;
+         color: transparent;
+         line-height: 1.2;
+      }
+
+      .welcome-hero p {
+         font-size: 1.15rem;
+         line-height: 1.7;
+         margin: 0 auto 30px;
+         max-width: 850px;
+         color: rgba(255, 255, 255, 0.85);
+      }
+
+      .hero-search-box {
+         max-width: 650px;
+         margin: 0 auto;
+         display: flex;
+         gap: 10px;
+         background: rgba(255, 255, 255, 0.08);
+         padding: 8px;
+         border-radius: 14px;
+         border: 1px solid rgba(255, 255, 255, 0.15);
+         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      }
+
+      .hero-search-box input {
+         flex: 1;
+         padding: 12px 18px;
+         border: none;
+         background: transparent;
+         color: #fff;
+         font-size: 1rem;
+         outline: none;
+      }
+
+      .hero-search-box input::placeholder {
+         color: rgba(255, 255, 255, 0.5);
+      }
+
+      .hero-search-box button {
+         padding: 12px 24px;
+         background: linear-gradient(90deg, #ff6b08, #2196f3);
+         border: none;
+         border-radius: 10px;
+         color: #fff;
+         font-weight: bold;
+         cursor: pointer;
+         transition: all 0.3s ease;
+         display: flex;
+         align-items: center;
+         gap: 8px;
+         white-space: nowrap;
+      }
+
+      .hero-search-box button:hover {
+         transform: translateY(-2px);
+         box-shadow: 0 5px 15px rgba(255, 107, 8, 0.4);
+      }
+
+      /* Trending Section */
+      .trending-section {
+         max-width: 1200px;
+         margin: 40px auto;
+         padding: 0 20px;
+      }
+
+      .section-header {
+         display: flex;
+         justify-content: space-between;
+         align-items: center;
+         margin-bottom: 20px;
+      }
+
+      .section-header h2 {
+         font-size: 1.8rem;
+         margin: 0;
+         display: flex;
+         align-items: center;
+         gap: 10px;
          background: linear-gradient(90deg, #ff6b08, #2196f3);
          -webkit-background-clip: text;
          background-clip: text;
          color: transparent;
       }
+
+      .trending-grid {
+         display: grid;
+         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+         gap: 18px;
+      }
+
+      .trending-card {
+         background: rgba(18, 24, 43, 0.85);
+         border-radius: 12px;
+         overflow: hidden;
+         border: 1px solid rgba(255, 255, 255, 0.08);
+         transition: all 0.3s ease;
+         cursor: pointer;
+         position: relative;
+         display: flex;
+         flex-direction: column;
+      }
+
+      .trending-card:hover {
+         transform: translateY(-5px);
+         border-color: #ff6b08;
+         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      }
+
+      .trending-poster {
+         width: 100%;
+         height: 250px;
+         object-fit: cover;
+         background: #111;
+      }
+
+      .trending-card-body {
+         padding: 12px;
+         display: flex;
+         flex-direction: column;
+         flex: 1;
+      }
+
+      .trending-title {
+         font-size: 0.95rem;
+         font-weight: 700;
+         color: #fff;
+         margin: 0 0 6px;
+         white-space: nowrap;
+         overflow: hidden;
+         text-overflow: ellipsis;
+      }
+
+      .trending-meta {
+         display: flex;
+         justify-content: space-between;
+         font-size: 0.8rem;
+         color: rgba(255, 255, 255, 0.6);
+         margin-bottom: 8px;
+      }
+
+      .trending-meta .rating {
+         color: #ffc107;
+         font-weight: bold;
+      }
+
+      .trending-btn {
+         margin-top: auto;
+         padding: 6px;
+         background: rgba(33, 150, 243, 0.2);
+         color: #90caf9;
+         border: 1px solid rgba(33, 150, 243, 0.3);
+         border-radius: 6px;
+         font-size: 0.75rem;
+         text-align: center;
+         text-decoration: none;
+         font-weight: bold;
+         transition: all 0.2s;
+      }
+
+      .trending-btn:hover {
+         background: #2196f3;
+         color: #fff;
+      }
+
+      /* Main Content Layout */
+      .home-layout {
+         display: flex;
+         max-width: 1200px;
+         margin: 30px auto 60px;
+         padding: 0 20px;
+         gap: 25px;
+      }
+
+      .main-feed {
+         flex: 3;
+      }
+
+      .home-sidebar {
+         flex: 1;
+      }
+
+      @media (max-width: 860px) {
+         .home-layout {
+            flex-direction: column;
+         }
+         .welcome-hero h1 {
+            font-size: 2.2rem;
+         }
+         .trending-grid {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+         }
+         .trending-poster {
+            height: 200px;
+         }
+      }
    </style>
 </head>
 
 <body>
+   <!-- Arka Plan Videosu -->
    <video autoplay muted loop id="backgroundVideo">
       <source src="/public/img/background/backgroundvideo.mp4" type="video/mp4">
    </video>
 
+   <!-- Üst Menü (Topbar) -->
    <div class="topbar">
       <div class="wrapper target">
          <div class="left">
@@ -163,96 +310,103 @@
          </div>
          <div class="center">
             <a href="/">ANASAYFA</a>
-            <a href="pages/cinebot.html">CINEBOT</a>
-            <a href="pages/auth.html" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
-            <a href="pages/filmsözlük.html">FİLMSÖZLÜK</a>
+            <a href="/cinebot">CINEBOT</a>
+            <a href="/auth" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
+            <a href="/filmsozluk">FİLMSÖZLÜK</a>
          </div>
          <div class="right">
             <span id="userProfileContainer">
-               <i class="fa-solid fa-user" style="color: #fff; font-size: 24px;"></i>
+               <i class="fa-solid fa-user" style="color: #fff; font-size: 22px;"></i>
             </span>
             <div class="searchEngine" id="searchEngine">
-               <input type="text" placeholder="...">
+               <input type="text" id="topSearchInput" placeholder="Film ara...">
                <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
             </div>
          </div>
       </div>
    </div>
 
-   <div class="welcome-container" style="text-align: center; padding: 50px 20px; margin: 20px auto; max-width: 1200px; background: rgba(0, 0, 0, 0.3); border-radius: 15px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);">
-      <h1 style="font-size: 3.8em; margin-bottom: 30px; font-weight: 800; display: inline-block; letter-spacing: 1px; font-family: 'Segoe UI', Arial, sans-serif;">
-         <span style="background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">AIFlix'e Hoş Geldiniz!</span> 🎬✨
-      </h1>
-      <p style="font-size: 1.4em; line-height: 1.8; margin: 0 auto; max-width: 900px; font-weight: 500; letter-spacing: 0.5px; font-family: 'Segoe UI', Arial, sans-serif;">
-         <span style="background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">Film tutkunları için özel olarak tasarlanmış AIFlix, sinema deneyiminizi bir üst seviyeye taşıyor! Burada en sevdiğiniz filmler hakkında postlar paylaşabilir, diğer sinemaseverlerle yorumlarınızı tartışabilir ve keşfedilmeyi bekleyen harika yapımları keşfedebilirsiniz. CineBot sayesinde, sadece istediğiniz filmi yazarak, yapay zeka destekli öneriler alabilir ve ruh halinize, tür tercihinize veya ilginç keşiflere göre yeni favori filminizi bulabilirsiniz. AIFlix ile sinema dünyasına dalın ve keşfin keyfini çıkarın!</span> 🎥🍿
+   <!-- Hero / Karşılama Alanı -->
+   <div class="welcome-hero">
+      <h1>AiFlix'e Hoş Geldiniz! 🎬✨</h1>
+      <p>
+         Yapay zeka destekli film platformu! Sevdiğiniz filmlere benzer başyapıtları keşfedin, ruh halinize göre özel öneriler alın ve FilmSözlük topluluğunda sinemaseverlerle fikirlerinizi paylaşın.
       </p>
+      
+      <!-- Hızlı Arama Kutusu -->
+      <form class="hero-search-box" onsubmit="event.preventDefault(); const val = document.getElementById('heroMovieInput').value.trim(); if(val) window.location.href='/cinebot?movie=' + encodeURIComponent(val);">
+         <input type="text" id="heroMovieInput" placeholder="Sevdiğiniz bir filmi yazın (Örn: Interstellar, Matrix)...">
+         <button type="submit">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Öneri Bul
+         </button>
+      </form>
    </div>
 
-   <div class="home" style="margin-top: 20px;">
-      <div class="wrapper" style="display: flex; justify-content: flex-start; max-width: 1200px; margin: 0 auto; gap: 20px;">
-         <div class="posts" style="width: 70%; padding: 20px 0; margin: 0;">
-            <div class="filmsözlük-preview" style="background: rgba(0, 0, 0, 0.3); padding: 25px; margin-bottom: 30px; border-radius: 15px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);">
-               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                  <h2 style="font-size: 2em; background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">FilmSözlük</h2>
-                  <a href="pages/filmsözlük.html" style="background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; transition: all 0.3s ease;">
-                     <i class="fa-solid fa-comments"></i> Film Tartış
-                  </a>
-               </div>
-               <div id="filmsözlükPreview" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-                  <!-- FilmSözlük başlıkları burada listelenecek -->
-               </div>
+   <!-- Haftanın Trend Filmleri (Dinamik TMDB) -->
+   <div class="trending-section">
+      <div class="section-header">
+         <h2><i class="fa-solid fa-fire" style="color: #ff6b08;"></i> Haftanın Trend Filmleri</h2>
+         <a href="/cinebot" style="color: #2196f3; text-decoration: none; font-weight: bold; font-size: 0.95rem;">
+            Tümünü CineBot'ta Keşfet &rarr;
+         </a>
+      </div>
+      <div class="trending-grid" id="trendingGrid">
+         <!-- Trend filmler JavaScript ile yüklenecek -->
+         <div style="grid-column: 1 / -1; text-align: center; padding: 30px; color: rgba(255,255,255,0.6);">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i>
+            <p>Trend filmler getiriliyor...</p>
+         </div>
+      </div>
+   </div>
+
+   <!-- Ana Akış & Yan Panel -->
+   <div class="home-layout">
+      <!-- Sol: FilmSözlük Önizleme -->
+      <div class="main-feed">
+         <div class="filmsözlük-preview" style="background: rgba(18, 24, 43, 0.85); padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+               <h2 style="margin: 0; font-size: 1.8rem; background: linear-gradient(90deg, #ff6b08, #2196f3); -webkit-background-clip: text; background-clip: text; color: transparent;">
+                  <i class="fa-solid fa-comments"></i> FilmSözlük Son Tartışmalar
+               </h2>
+               <a href="/filmsozluk" style="background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 0.9rem; transition: all 0.3s ease;">
+                  Tüm Başlıklar
+               </a>
+            </div>
+            <div id="filmsözlükPreview" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+               <!-- Sözlük başlıkları Firestore'dan yüklenecek -->
             </div>
          </div>
+      </div>
 
-         <div class="sidebar" style="position: static; width: 25%; margin: 0;">
-            <div class="area target" style="text-align: center; padding: 30px 20px;">
-               <div id="sidebarProfileContainer" style="margin-bottom: 20px;">
-                  <i class="fa-solid fa-user" style="color: #333; font-size: 64px;"></i>
-               </div>
-               <h3 style="margin: 15px 0; font-size: 1.4em; color: #333;">Hoşgeldin, <span id="username" style="color: #ff6b08; font-weight: bold;">Misafir</span></h3>
-               <div style="display: flex; flex-direction: column; gap: 10px;">
-                  <a id="addPostBtn" href="pages/filmsözlük.html" style="display: inline-block; padding: 10px 20px; background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: all 0.3s ease;">YAZI EKLE</a>
-                  <a href="/pages/cinebot.html" style="display: inline-block; padding: 10px 20px; background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: all 0.3s ease;">FİLM ÖNERİSİ AL</a>
-                  <button id="logoutBtn" style="padding: 10px 20px; background: rgba(255, 107, 8, 0.9); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; display: none;">ÇIKIŞ YAP</button>
-               </div>
+      <!-- Sağ: Profil ve Hızlı Erişim -->
+      <div class="home-sidebar">
+         <div style="background: rgba(18, 24, 43, 0.85); text-align: center; padding: 25px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px);">
+            <div id="sidebarProfileContainer" style="margin-bottom: 15px;">
+               <i class="fa-solid fa-circle-user" style="color: #ff6b08; font-size: 64px;"></i>
+            </div>
+            <h3 style="margin: 10px 0 20px; font-size: 1.25rem; color: #fff;">
+               Hoş geldin, <span id="username" style="color: #ff6b08; font-weight: bold;">Misafir</span>
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+               <a href="/cinebot" style="display: block; padding: 12px; background: linear-gradient(90deg, #ff6b08, #2196f3); color: white; text-decoration: none; border-radius: 10px; font-weight: bold; transition: all 0.3s ease;">
+                  <i class="fa-solid fa-robot"></i> CINEBOT İLE ÖNERİ AL
+               </a>
+               <a href="/filmsozluk" style="display: block; padding: 12px; background: rgba(255, 255, 255, 0.1); color: white; text-decoration: none; border-radius: 10px; font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.15); transition: all 0.3s ease;">
+                  <i class="fa-solid fa-pen-to-square"></i> YENİ BAŞLIK AÇ
+               </a>
+               <button id="logoutBtn" style="padding: 10px; background: rgba(235, 30, 30, 0.25); color: #ff6b6b; border: 1px solid rgba(235, 30, 30, 0.4); border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; display: none;">
+                  <i class="fa-solid fa-arrow-right-from-bracket"></i> ÇIKIŞ YAP
+               </button>
             </div>
          </div>
       </div>
    </div>
-   <div class="posts-container">
-      <h2>Yazılar</h2>
-      <div id="postsList">
-          <!-- Burada yazılar görüntülenecek -->
-      </div>
-  </div>
-  
-  <script>
-      window.onload = function() {
-          // localStorage'dan yazıları al
-          let posts = JSON.parse(localStorage.getItem("posts")) || [];
-  
-          // Eğer yazılar varsa, her birini listele
-          if (posts.length > 0) {
-              let postsList = document.getElementById("postsList");
-              posts.forEach(function(post) {
-                  let postElement = document.createElement("div");
-                  postElement.classList.add("post");
-  
-                  // Yazı başlığını, içeriğini ve yazar adını göster
-                  postElement.innerHTML = `<h3>${post.title}</h3><p>${post.content}</p><small>${post.author}</small>`;
-                  postsList.appendChild(postElement);
-              });
-          } else {
-              document.getElementById("postsList").textContent = "Henüz eklenmiş yazı yok.";
-          }
-      };
-  </script>
-  
-   
 
+   <!-- Scripts -->
    <script src="/public/js/script.js"></script>
    <script src="/public/js/search.js"></script>
    <script src="/public/js/scroll.js"></script>
+
    <script type="module">
       import { auth, db } from '/public/js/firebase-config.js';
       import { 
@@ -262,48 +416,107 @@
           limit 
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-      window.onload = async function() {
-          // Firebase'den giriş yapan kullanıcının bilgilerini al
+      // Sayfa Yüklendiğinde
+      window.addEventListener('DOMContentLoaded', async () => {
+          // 1. Firebase Auth durumunu dinle
           auth.onAuthStateChanged((user) => {
+              const userProfileContainer = document.getElementById("userProfileContainer");
+              const authLink = document.getElementById("authLink");
+              const usernameEl = document.getElementById("username");
+              const logoutBtn = document.getElementById("logoutBtn");
+              const sidebarProfileContainer = document.getElementById("sidebarProfileContainer");
+
               if (user) {
-                  document.getElementById("userProfileContainer").innerHTML = `
-                      <img src="${user.photoURL || '/public/img/user/user-1.jpg'}" alt="user" style="width: 40px; height: 40px; border-radius: 50%;">
-                  `;
-                  document.getElementById("authLink").style.display = "none";
-                  document.getElementById("username").textContent = user.displayName || user.email;
-                  document.getElementById("logoutBtn").style.display = "inline-block";
-                  document.getElementById("sidebarProfileContainer").innerHTML = `
-                      <img src="${user.photoURL || '/public/img/user/user-1.jpg'}" alt="user" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
-                  `;
+                  const avatar = user.photoURL || '/public/img/user/user-1.jpg';
+                  const name = user.displayName || user.email.split('@')[0];
+
+                  localStorage.setItem('loggedInUser', name);
+                  localStorage.setItem('userProfilePicture', avatar);
+
+                  if (userProfileContainer) {
+                      userProfileContainer.innerHTML = `<img src="${avatar}" alt="${name}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #ff6b08;">`;
+                  }
+                  if (authLink) authLink.style.display = "none";
+                  if (usernameEl) usernameEl.textContent = name;
+                  if (logoutBtn) logoutBtn.style.display = "block";
+                  if (sidebarProfileContainer) {
+                      sidebarProfileContainer.innerHTML = `<img src="${avatar}" alt="${name}" style="width: 75px; height: 75px; border-radius: 50%; object-fit: cover; border: 3px solid #ff6b08;">`;
+                  }
               } else {
-                  document.getElementById("userProfileContainer").innerHTML = `
-                      <i class="fa-solid fa-user" style="color: #fff; font-size: 24px;"></i>
-                  `;
-                  document.getElementById("authLink").style.display = "inline-block";
-                  document.getElementById("username").textContent = "Misafir";
-                  document.getElementById("logoutBtn").style.display = "none";
-                  document.getElementById("sidebarProfileContainer").innerHTML = `
-                      <i class="fa-solid fa-user" style="color: #333; font-size: 64px;"></i>
-                  `;
+                  if (authLink) authLink.style.display = "inline-block";
+                  if (usernameEl) usernameEl.textContent = "Misafir";
+                  if (logoutBtn) logoutBtn.style.display = "none";
               }
           });
 
-          // FilmSözlük başlıklarını yükle
-          await loadFilmSözlükPreview();
-      };
+          // 2. Trend Filmleri Getir
+          await loadTrendingMovies();
 
+          // 3. FilmSözlük Başlıklarını Yükle
+          await loadFilmSözlükPreview();
+      });
+
+      // Trend Filmleri Yükleme
+      async function loadTrendingMovies() {
+          const grid = document.getElementById('trendingGrid');
+          if (!grid) return;
+
+          try {
+              const res = await fetch('/api/trending');
+              if (!res.ok) throw new Error('Trend filmler alınamadı');
+              const data = await res.json();
+              const movies = data.results || [];
+
+              if (movies.length === 0) {
+                  grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Henüz trend film bulunamadı.</p>';
+                  return;
+              }
+
+              grid.innerHTML = movies.slice(0, 6).map(m => {
+                  const poster = m.poster_path 
+                      ? `https://image.tmdb.org/t/p/w500${m.poster_path}` 
+                      : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80';
+                  const year = m.release_date ? m.release_date.split('-')[0] : '';
+                  const encodedTitle = encodeURIComponent(m.title);
+
+                  return `
+                      <div class="trending-card" onclick="window.location.href='/cinebot?movie=${encodedTitle}'">
+                          <img src="${poster}" alt="${m.title}" class="trending-poster" loading="lazy">
+                          <div class="trending-card-body">
+                              <h4 class="trending-title" title="${m.title}">${m.title}</h4>
+                              <div class="trending-meta">
+                                  <span>${year}</span>
+                                  <span class="rating"><i class="fa-solid fa-star"></i> ${m.vote_average || '7.5'}</span>
+                              </div>
+                              <a href="/cinebot?movie=${encodedTitle}" class="trending-btn" onclick="event.stopPropagation()">
+                                  <i class="fa-solid fa-wand-magic-sparkles"></i> Benzerini Bul
+                              </a>
+                          </div>
+                      </div>
+                  `;
+              }).join('');
+
+          } catch (e) {
+              console.error('Trend filmler yükleme hatası:', e);
+              grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6);">Trend filmler yüklenemedi.</p>';
+          }
+      }
+
+      // FilmSözlük Başlıklarını Yükleme
       async function loadFilmSözlükPreview() {
+          const previewContainer = document.getElementById('filmsözlükPreview');
+          if (!previewContainer) return;
+
           try {
               const entriesQuery = query(collection(db, "entries"), limit(4));
               const querySnapshot = await getDocs(entriesQuery);
-              const previewContainer = document.getElementById('filmsözlükPreview');
               
               if (querySnapshot.empty) {
                   previewContainer.innerHTML = `
-                      <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: #fff;">
-                          <i class="fa-solid fa-comments" style="font-size: 2em; margin-bottom: 10px;"></i>
-                          <p>Henüz hiç film tartışması başlatılmamış.</p>
-                          <p>İlk tartışmayı başlatmak için FilmSözlük'e gidin!</p>
+                      <div style="grid-column: 1 / -1; text-align: center; padding: 25px; color: rgba(255,255,255,0.7);">
+                          <i class="fa-solid fa-comments" style="font-size: 2.2rem; color: #ff6b08; margin-bottom: 10px;"></i>
+                          <p style="margin: 0 0 10px;">Henüz hiç film tartışması başlatılmamış.</p>
+                          <a href="/filmsozluk" style="color: #2196f3; font-weight: bold; text-decoration: none;">İlk tartışmayı siz başlatın! &rarr;</a>
                       </div>
                   `;
                   return;
@@ -313,48 +526,61 @@
               querySnapshot.forEach((doc) => {
                   const entry = doc.data();
                   const previewElement = document.createElement('div');
-                  previewElement.style.background = 'rgba(255, 255, 255, 0.1)';
-                  previewElement.style.padding = '15px';
-                  previewElement.style.borderRadius = '10px';
-                  previewElement.style.backdropFilter = 'blur(5px)';
-                  previewElement.style.border = '1px solid rgba(255, 255, 255, 0.1)';
-                  previewElement.style.cursor = 'pointer';
-                  previewElement.onclick = () => window.location.href = 'pages/filmsözlük.html';
+                  previewElement.style.cssText = `
+                      background: rgba(255, 255, 255, 0.05);
+                      padding: 16px;
+                      border-radius: 12px;
+                      border: 1px solid rgba(255, 255, 255, 0.08);
+                      cursor: pointer;
+                      transition: all 0.3s ease;
+                      display: flex;
+                      flex-direction: column;
+                  `;
+                  previewElement.onmouseenter = () => {
+                      previewElement.style.borderColor = '#ff6b08';
+                      previewElement.style.transform = 'translateY(-3px)';
+                  };
+                  previewElement.onmouseleave = () => {
+                      previewElement.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                      previewElement.style.transform = 'none';
+                  };
+                  previewElement.onclick = () => window.location.href = `/filmsozluk?id=${doc.id}`;
 
                   previewElement.innerHTML = `
-                      <h3 style="color: #fff; margin: 0 0 10px 0; font-size: 1.2em;">${entry.title}</h3>
-                      <p style="color: rgba(255, 255, 255, 0.8); margin: 0 0 10px 0; font-size: 0.9em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">${entry.content}</p>
-                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8em; color: rgba(255, 255, 255, 0.6);">
-                          <div style="display: flex; align-items: center; gap: 8px;">
-                              <img src="${entry.authorImage}" alt="${entry.author}" style="width: 20px; height: 20px; border-radius: 50%;">
-                              <span>${entry.author}</span>
+                      <h4 style="color: #fff; margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 700;">${entry.title}</h4>
+                      <p style="color: rgba(255, 255, 255, 0.75); margin: 0 0 12px 0; font-size: 0.85rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1;">${entry.content}</p>
+                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                              <img src="${entry.authorImage || '/public/img/user/user-1.jpg'}" alt="${entry.author}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover;">
+                              <span>${entry.author || 'Anonim'}</span>
                           </div>
-                          <div style="display: flex; align-items: center; gap: 10px;">
-                              <span><i class="fa-solid fa-heart"></i> ${entry.likes || 0}</span>
-                              <span><i class="fa-solid fa-comment"></i> ${entry.comments ? entry.comments.length : 0}</span>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                              <span><i class="fa-solid fa-heart" style="color: #ff6b6b;"></i> ${entry.likes || 0}</span>
+                              <span><i class="fa-solid fa-comment" style="color: #64b5f6;"></i> ${entry.comments ? entry.comments.length : 0}</span>
                           </div>
                       </div>
                   `;
                   previewContainer.appendChild(previewElement);
               });
           } catch (error) {
-              console.error("FilmSözlük başlıkları yüklenirken hata:", error);
-              document.getElementById('filmsözlükPreview').innerHTML = `
-                  <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: #fff;">
-                      <p>Başlıklar yüklenirken bir hata oluştu.</p>
+              console.error("FilmSözlük önizleme hatası:", error);
+              previewContainer.innerHTML = `
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">
+                      <p>Sözlük başlıkları getirilemedi.</p>
                   </div>
               `;
           }
       }
 
-      // Çıkış yapma fonksiyonu
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
+      // Çıkış Butonu
+      document.getElementById('logoutBtn')?.addEventListener('click', async () => {
           try {
               await auth.signOut();
+              localStorage.removeItem('loggedInUser');
+              localStorage.removeItem('userProfilePicture');
               window.location.reload();
           } catch (error) {
-              console.error("Çıkış yapılırken hata:", error);
-              alert("Çıkış yapılırken bir hata oluştu!");
+              console.error("Çıkış hatası:", error);
           }
       });
    </script>

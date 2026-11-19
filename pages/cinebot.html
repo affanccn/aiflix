@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Film Önerileri - AiFlix</title>
+    <title>CineBot - Yapay Zeka Film Önerisi | AiFlix</title>
     <link rel="stylesheet" href="/public/css/index.css">
     <link rel="stylesheet" href="/public/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -12,379 +12,517 @@
             margin: 0;
             padding: 0;
             min-height: 100vh;
-            background: url('/public/img/background/aicinemascreen.jpg') no-repeat center center fixed;
+            background: linear-gradient(rgba(10, 15, 29, 0.82), rgba(10, 15, 29, 0.92)), url('/public/img/background/aicinemascreen.jpg') no-repeat center center fixed;
             background-size: cover;
             position: relative;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow-x: hidden;
+        }
+
+        .main-wrapper {
+            max-width: 1100px;
+            margin: 100px auto 60px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 5;
+        }
+
+        /* Hero Header */
+        .cinebot-hero {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .cinebot-hero h1 {
+            font-size: 3rem;
+            margin: 0 0 10px;
+            font-weight: 800;
+            background: linear-gradient(90deg, #ff6b08, #2196f3);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 30px rgba(255, 107, 8, 0.2);
+        }
+
+        .cinebot-hero p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.15rem;
+            margin: 0 auto;
+            max-width: 650px;
+        }
+
+        /* Form Card */
+        .cinebot-card {
+            background: rgba(18, 24, 43, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 35px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            margin-bottom: 40px;
+        }
+
+        /* Mode Selector */
+        .mode-toggle {
             display: flex;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 5px;
+            margin-bottom: 25px;
+            gap: 6px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
             justify-content: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(90deg, #ff6b08, #2196f3);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 107, 8, 0.3);
+        }
+
+        /* Input Controls */
+        .input-group-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .input-group-row {
+                grid-template-columns: 1fr;
+            }
+            .cinebot-hero h1 {
+                font-size: 2.2rem;
+            }
+            .cinebot-card {
+                padding: 20px;
+            }
+        }
+
+        .control-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .control-item input,
+        .control-item select {
+            width: 100%;
+            padding: 13px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        .control-item input:focus,
+        .control-item select:focus {
+            outline: none;
+            border-color: #2196f3;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.25);
+        }
+
+        .control-item select option {
+            background: #111827;
+            color: #fff;
+        }
+
+        /* Quick Inspiration Tags */
+        .quick-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 25px;
             align-items: center;
         }
 
-        /* Film şeridi animasyonu */
-        .film-strip {
-            display: none;
+        .quick-tags-title {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-right: 5px;
         }
 
-        /* Projektör ışığı efekti */
-        .projector-light {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 1200px;
-            height: 1200px;
-            background: radial-gradient(
-                circle,
-                rgba(255, 147, 7, 0.1) 0%,
-                transparent 70%
-            );
-            animation: rotateLight 20s linear infinite;
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        /* AI Robot animasyonları */
-        .floating-robot {
-            display: none;
-        }
-
-        #robot1, #robot2, #movieRobot {
-            display: none;
-        }
-
-        /* Ana içerik konteyner */
-        .cinebot-container {
-            position: relative;
-            z-index: 4;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 12px 30px;
-            border-radius: 15px;
-            margin: 0 auto;
-            height: 255px;
-            width: 500px;
-            max-width: 90%;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.5s ease-in-out;
-            right: -1px;
-            transform: translateY(-27%);
-        }
-
-        .cinebot-container.expanded {
-            width: 800px;
-            transform: translateY(0);
-            padding: 30px;
-        }
-
-        .cinebot-container h2 {
-            font-size: 1.4em;
-            margin-bottom: 10px;
-            transition: all 0.5s ease-in-out;
-        }
-
-        .cinebot-container.expanded h2 {
-            font-size: 2em;
-            margin-bottom: 25px;
-        }
-
-        .movie-details {
-            background: rgba(255, 255, 255, 0.95) !important;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .movie-details h2 {
-            color: #4a90e2;
-            font-size: 2em;
-            margin: 10px 0 20px;
-            text-shadow: 2px 2px 4px rgba(35, 166, 213, 0.3);
-        }
-
-        .movie-details-content {
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }
-
-        .movie-details img {
-            width: 200px;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            flex-shrink: 0;
-        }
-
-        .movie-details-text {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .movie-details p {
-            color: #333;
-            line-height: 1.5;
-            margin: 0;
-            max-height: 250px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
-        .suggestions-container {
-            background: transparent;
-            margin-top: 20px;
-        }
-
-        .suggestions-text h3 {
-            color: #fff;
-            margin-bottom: 20px;
-            font-size: 22px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #4a90e2;
-        }
-
-        .suggestions-text p {
-            color: #000;
-            line-height: 1.6;
-            margin-bottom: 15px;
-            padding: 15px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid #4a90e2;
-        }
-
-        .suggestion-item {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid #4a90e2;
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }
-
-        .suggestion-item img {
-            width: 100px;
-            height: auto;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .suggestion-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .suggestion-content strong {
-            display: block;
-            color: #1976d2;
-            font-size: 1.2em;
-            margin-bottom: 10px;
-        }
-
-        .suggestion-content span {
-            color: #333;
-            display: block;
-            line-height: 1.5;
-        }
-
-        label {
-            display: block;
-            margin: 6px 0 3px;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-        }
-
-        input, select, button {
-            width: 100%;
-            padding: 6px;
-            margin-bottom: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            border-radius: 8px;
-            background-color: rgba(0, 0, 0, 0.7) !important;
-            color: #fff !important;
-            transition: all 0.3s ease;
-        }
-
-        input::placeholder {
-            color: rgba(255, 255, 255, 0.5) !important;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: #23a6d5;
-            box-shadow: 0 0 0 3px rgba(35, 166, 213, 0.2);
-            background-color: rgba(255, 255, 255, 0.15);
-        }
-
-        select {
-            appearance: none;
-        }
-
-        select option {
-            background-color: rgba(0, 0, 0, 0.9);
-            color: #fff;
-        }
-
-        button {
-            background: rgba(74, 144, 226, 0.7) !important;
-            color: white;
-            border: none !important;
+        .tag-pill {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
         }
 
-        button:hover {
-            background: rgba(74, 144, 226, 0.9) !important;
+        .tag-pill:hover {
+            background: rgba(255, 107, 8, 0.2);
+            border-color: #ff6b08;
+            color: #fff;
             transform: translateY(-2px);
         }
 
-        h2 {
-            color: #fff;
-            text-align: center;
-            margin-bottom: 25px;
-            font-size: 2em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-
-        #movieInput {
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
-            border: 2px solid #4a90e2;
-        }
-
-        .loading {
-            color: white;
-            font-size: 18px;
-            margin: 20px 0;
-        }
-
-        @media (max-width: 600px) {
-            .movie-details-content,
-            .suggestions-text p {
-                flex-direction: column;
-            }
-
-            .movie-details img,
-            .suggestions-text p img {
-                width: 100%;
-                max-width: 300px;
-                margin: 0 auto 15px;
-                display: block;
-            }
-
-            .suggestion-item {
-                flex-direction: column;
-            }
-
-            .suggestion-item img {
-                width: 100%;
-                max-width: 200px;
-                margin: 0 auto 15px;
-            }
-        }
-
-        /* Animasyonlar */
-        @keyframes rotateLight {
-            0% {
-                transform: translate(-50%, -50%) rotate(0deg);
-            }
-            100% {
-                transform: translate(-50%, -50%) rotate(360deg);
-            }
-        }
-
-        .selected-movie-title {
-            color: #4a90e2;
-            font-size: 1.4em;
-            margin-bottom: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-bottom: 2px solid #4a90e2;
-            padding-bottom: 5px;
-            display: inline-block;
-        }
-
-        .movie-description {
-            margin-top: 10px;
-        }
-
-        .description-title {
-            display: block;
-            color: #4a90e2;
-            font-weight: bold;
-            margin-bottom: 5px;
-            font-size: 1.1em;
-        }
-
-        .description-text {
-            color: #333;
-            display: block;
-            line-height: 1.5;
-            text-align: justify;
-        }
-
-        .translated-text {
-            display: inline-block;
-            font-size: 0.9em;
-            color: #666;
-            font-style: italic;
-            margin-left: 5px;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-            opacity: 0.8;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 20px;
-            align-items: flex-end;
-            margin-bottom: 10px;
-        }
-
-        .input-group .input-container {
-            flex: 1 1 50%;
-            width: 50%;
-        }
-
-        .input-container.number-input,
-        .input-container.genre-input {
-            flex: 1 1 50%;
-            width: 50%;
-        }
-
-        .input-container label {
-            margin-bottom: 8px;
-            white-space: nowrap;
-        }
-
-        input[type="number"], select {
+        /* Submit Button */
+        .submit-btn {
             width: 100%;
-            box-sizing: border-box;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(90deg, #ff6b08, #2196f3);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(255, 107, 8, 0.35);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
 
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(33, 150, 243, 0.45);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Loading Animation */
+        .loading-container {
+            display: none;
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(255, 255, 255, 0.1);
+            border-top: 5px solid #ff6b08;
+            border-right: 5px solid #2196f3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Results Area */
         #suggestionsContainer {
-            opacity: 0;
-            height: 0;
-            overflow: hidden;
-            transition: all 0.5s ease-in-out;
+            margin-top: 40px;
         }
 
-        #suggestionsContainer.visible {
-            opacity: 1;
-            height: auto;
-            overflow: visible;
+        .query-summary {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px 25px;
+            margin-bottom: 30px;
+            border-left: 4px solid #ff6b08;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .query-summary h3 {
+            margin: 0;
+            font-size: 1.3rem;
+            color: #fff;
+        }
+
+        .engine-badge {
+            font-size: 0.8rem;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(33, 150, 243, 0.2);
+            color: #90caf9;
+            border: 1px solid rgba(33, 150, 243, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Movie Suggestion Cards Grid */
+        .suggestions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .movie-card {
+            background: rgba(18, 24, 43, 0.9);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255, 107, 8, 0.4);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .poster-wrap {
+            position: relative;
+            width: 100%;
+            height: 360px;
+            background: #0f172a;
+            overflow: hidden;
+        }
+
+        .poster-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .movie-card:hover .poster-wrap img {
+            transform: scale(1.05);
+        }
+
+        .rating-pill {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            color: #ffc107;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        .year-pill {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .card-body {
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin: 0 0 6px;
+            color: #fff;
+            line-height: 1.3;
+        }
+
+        .card-original-title {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 12px;
+        }
+
+        .genres-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .genre-badge {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        /* AI Reason Highlight Box */
+        .ai-reason-box {
+            background: linear-gradient(135deg, rgba(255, 107, 8, 0.12), rgba(33, 150, 243, 0.12));
+            border-left: 3px solid #ff6b08;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #ffe0b2;
+        }
+
+        .ai-reason-box strong {
+            display: block;
+            color: #ff9800;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-overview {
+            font-size: 0.9rem;
+            line-height: 1.55;
+            color: rgba(255, 255, 255, 0.75);
+            margin-bottom: 20px;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: none;
+        }
+
+        .trailer-btn {
+            background: rgba(235, 30, 30, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(235, 30, 30, 0.4);
+        }
+
+        .trailer-btn:hover {
+            background: #e50914;
+            color: #fff;
+        }
+
+        .discuss-btn {
+            background: rgba(33, 150, 243, 0.2);
+            color: #64b5f6;
+            border: 1px solid rgba(33, 150, 243, 0.4);
+        }
+
+        .discuss-btn:hover {
+            background: #2196f3;
+            color: #fff;
+        }
+
+        /* Trailer Modal */
+        .trailer-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .trailer-modal.active {
+            display: flex;
+        }
+
+        .modal-inner {
+            width: 90%;
+            max-width: 850px;
+            position: relative;
+        }
+
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .close-modal-btn {
+            position: absolute;
+            top: -45px;
+            right: 0;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-modal-btn:hover {
+            color: #ff6b08;
         }
     </style>
 </head>
 <body>
+    <!-- Topbar Navigation -->
     <div class="topbar">
         <div class="wrapper target">
             <div class="left">
@@ -395,78 +533,118 @@
             </div>
             <div class="center">
                 <a href="/">ANASAYFA</a>
-                <a href="cinebot.html">CINEBOT</a>
-                <a href="auth.html" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
-                <a href="filmsözlük.html">FİLMSÖZLÜK</a>
+                <a href="/cinebot" style="color: #ff6b08; font-weight: bold;">CINEBOT</a>
+                <a href="/auth" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
+                <a href="/filmsozluk">FİLMSÖZLÜK</a>
             </div>
             <div class="right">
                 <span id="userProfileContainer">
-                    <i class="fa-solid fa-user" style="color: #fff; font-size: 24px;"></i>
+                    <i class="fa-solid fa-user" style="color: #fff; font-size: 22px;"></i>
                 </span>
                 <div class="searchEngine" id="searchEngine">
-                    <input type="text" placeholder="...">
+                    <input type="text" id="topSearchInput" placeholder="Film ara...">
                     <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Arka plan efektleri -->
-    <div class="film-strip"></div>
-    <div class="projector-light"></div>
-
-    <div class="cinebot-container">
-        <h2>Film Önerisi Al</h2>
-        
-        <label for="movieInput">İzlediğiniz Film:</label>
-        <input type="text" id="movieInput" placeholder="Film Adı">
-        
-        <div class="input-group">
-            <div class="input-container number-input">
-                <label for="numberOfSuggestions">Kaç adet öneri istersiniz?</label>
-                <input type="number" id="numberOfSuggestions" min="1" max="10" value="3">
-            </div>
-            
-            <div class="input-container genre-input">
-                <label for="genreSelect">Film Kategorisi:</label>
-                <select id="genreSelect">
-                    <option value="action">Aksiyon</option>
-                    <option value="adventure">Macera</option>
-                    <option value="horror">Korku</option>
-                    <option value="comedy">Komedi</option>
-                    <option value="drama">Drama</option>
-                    <option value="sci-fi">Bilim Kurgu</option>
-                </select>
-            </div>
+    <!-- Main Container -->
+    <div class="main-wrapper">
+        <div class="cinebot-hero">
+            <h1><i class="fa-solid fa-robot"></i> CineBot AI</h1>
+            <p>Yapay zeka ile kişiselleştirilmiş film önerileri keşfedin. İster sevdiğiniz bir filmi yazın, ister hayalinizdeki temayı anlatın!</p>
         </div>
 
-        <button onclick="getMovieSuggestions()">Öner</button>
-        
-        <div id="suggestionsContainer">
-            <!-- Burada öneriler gösterilecek -->
+        <div class="cinebot-card">
+            <!-- Mode Selector -->
+            <div class="mode-toggle">
+                <button type="button" class="mode-btn active" id="btnModeMovie" onclick="setMode('movie')">
+                    <i class="fa-solid fa-clapperboard"></i> Sevdiğim Bir Filme Benzer
+                </button>
+                <button type="button" class="mode-btn" id="btnModeVibe" onclick="setMode('ai')">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Ruh Halime & Temaya Göre
+                </button>
+            </div>
+
+            <!-- Inputs -->
+            <div class="input-group-row">
+                <div class="control-item">
+                    <label for="movieInput" id="inputLabel">Film Adı:</label>
+                    <input type="text" id="movieInput" placeholder="Örn: Inception, Interstellar, Fight Club..." onkeypress="if(event.key === 'Enter') getMovieSuggestions()">
+                </div>
+
+                <div class="control-item">
+                    <label for="genreSelect">Kategori (Tür):</label>
+                    <select id="genreSelect">
+                        <option value="all">Tüm Türler (Otomatik)</option>
+                        <option value="sci-fi">Bilim Kurgu</option>
+                        <option value="action">Aksiyon</option>
+                        <option value="thriller">Gerilim</option>
+                        <option value="drama">Dram</option>
+                        <option value="comedy">Komedi</option>
+                        <option value="horror">Korku</option>
+                        <option value="mystery">Gizem</option>
+                        <option value="adventure">Macera</option>
+                        <option value="romance">Romantik</option>
+                        <option value="animation">Animasyon</option>
+                        <option value="fantasy">Fantastik</option>
+                        <option value="crime">Suç</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="numberOfSuggestions">Öneri Sayısı:</label>
+                    <select id="numberOfSuggestions">
+                        <option value="3">3 Film</option>
+                        <option value="4" selected>4 Film</option>
+                        <option value="6">6 Film</option>
+                        <option value="8">8 Film</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Quick Inspiration Tags -->
+            <div class="quick-tags">
+                <span class="quick-tags-title"><i class="fa-solid fa-bolt"></i> İlham Al:</span>
+                <span class="tag-pill" onclick="applyTag('Ters köşe yapan zihin bükücü gerilim filmleri', 'thriller')">🧠 Ters Köşe Gerilim</span>
+                <span class="tag-pill" onclick="applyTag('Derin uzayda geçen yalnızlık ve gizem temalı', 'sci-fi')">🚀 Uzay Gizemi</span>
+                <span class="tag-pill" onclick="applyTag('Yağmurlu bir pazar günü izlenecek sıcacık nostaljik', 'drama')">☕ Sıcak Nostalji</span>
+                <span class="tag-pill" onclick="applyTag('Cyberpunk atmosferli distopik aksiyon', 'action')">🌆 Cyberpunk & Gelecek</span>
+                <span class="tag-pill" onclick="applyTag('Karanlık dedektif ve seri katil kovalamacası', 'crime')">🕵️ Karanlık Polisiye</span>
+                <span class="tag-pill" onclick="applyTag('İçinizi ısıtacak keyifli yol hikayesi', 'comedy')">🚗 Keyifli Yolculuk</span>
+            </div>
+
+            <button type="button" class="submit-btn" id="submitBtn" onclick="getMovieSuggestions()">
+                <i class="fa-solid fa-sparkles"></i> Yapay Zeka İle Öneri Getir
+            </button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-container" id="loadingContainer">
+            <div class="spinner"></div>
+            <h3 id="loadingText" style="color: #fff; font-size: 1.2rem; margin: 0 0 8px;">Yapay zeka film önerilerini hazırlıyor...</h3>
+            <p style="color: rgba(255,255,255,0.6); margin: 0;">Binlerce film taranıyor, eşleşmeler değerlendiriliyor.</p>
+        </div>
+
+        <!-- Suggestions Container -->
+        <div id="suggestionsContainer"></div>
+    </div>
+
+    <!-- Video Modal -->
+    <div class="trailer-modal" id="trailerModal" onclick="closeTrailerModal(event)">
+        <div class="modal-inner" onclick="event.stopPropagation()">
+            <button class="close-modal-btn" onclick="closeTrailerModal()">&times;</button>
+            <div class="video-wrapper">
+                <iframe id="trailerIframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="/public/js/script.js"></script>
     <script src="/public/js/search.js"></script>
     <script src="/public/js/scroll.js"></script>
     <script src="/public/js/cinebot.js"></script>
-    <script>
-        window.onload = function() {
-            // localStorage'dan giriş yapan kullanıcının bilgilerini al
-            let loggedInUser = localStorage.getItem("loggedInUser");
-            let userProfilePicture = localStorage.getItem("userProfilePicture");
-
-            // Eğer kullanıcı giriş yapmışsa profil fotoğrafını güncelle ve auth linkini gizle
-            if (loggedInUser && userProfilePicture) {
-                document.getElementById("userProfileContainer").innerHTML = `
-                    <img src="${userProfilePicture}" alt="user" style="width: 40px; height: 40px; border-radius: 50%;">
-                `;
-                document.getElementById("authLink").style.display = "none";
-            } else {
-                document.getElementById("authLink").style.display = "inline-block";
-            }
-        };
-    </script>
 </body>
 </html>

@@ -1,247 +1,550 @@
 const express = require('express');
 const path = require('path');
-const app = express();
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-const https = require('https');
-const dns = require('dns');
+const cors = require('cors');
 require('dotenv').config();
 
-// DNS ayarları
-dns.setServers(['8.8.8.8', '8.8.4.4']); // Google DNS sunucularını kullan
+const app = express();
 
-// TMDB API yapılandırması
+// Global fetch desteği (Node 18+ yerleşik fetch, aksi halde node-fetch)
+const fetchFn = typeof fetch !== 'undefined' ? fetch : (...args) => import('node-fetch').then(({default: f}) => f(...args));
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// API Keys
 const TMDB_API_KEY = process.env.TMDB_API_KEY || "b2b675bb84525726b8c8cea1c8aed29b";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
-// HTTPS agent yapılandırması
-const httpsAgent = new https.Agent({
-    rejectUnauthorized: false,
-    keepAlive: true,
-    timeout: 60000,
-    family: 4, // IPv4'ü zorla
-    proxy: null, // Proxy kullanımını devre dışı bırak
-    localAddress: null // Yerel adres kısıtlamasını kaldır
-});
+// Genre ID haritası
+const GENRE_MAP = {
+    'all': null,
+    'action': 28,
+    'adventure': 12,
+    'animation': 16,
+    'comedy': 35,
+    'crime': 80,
+    'documentary': 99,
+    'drama': 18,
+    'family': 10751,
+    'fantasy': 14,
+    'history': 36,
+    'horror': 27,
+    'music': 10402,
+    'mystery': 9648,
+    'romance': 10749,
+    'sci-fi': 878,
+    'thriller': 53,
+    'war': 10752,
+    'western': 37
+};
 
-// Fetch yapılandırması
-const fetchWithRetry = async (url, options = {}, retries = 3) => {
+const GENRE_NAMES_TR = {
+    28: 'Aksiyon',
+    12: 'Macera',
+    16: 'Animasyon',
+    35: 'Komedi',
+    80: 'Suç',
+    99: 'Belgesel',
+    18: 'Dram',
+    10751: 'Aile',
+    14: 'Fantastik',
+    36: 'Tarih',
+    27: 'Korku',
+    10402: 'Müzik',
+    9648: 'Gizem',
+    10749: 'Romantik',
+    878: 'Bilim Kurgu',
+    53: 'Gerilim',
+    10752: 'Savaş',
+    37: 'Vahşi Batı'
+};
+
+// Güvenli fetch fonksiyonu (otomatik retry destekli)
+async function fetchSafe(url, options = {}, retries = 2) {
     try {
-        const response = await fetch(url, {
+        const response = await fetchFn(url, {
             ...options,
-            agent: httpsAgent,
-            timeout: 30000,
             headers: {
-                ...options.headers,
                 'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            },
-            proxy: null // Proxy kullanımını devre dışı bırak
+                'User-Agent': 'AiFlix/2.0 (Movie Recommendation Platform)',
+                ...(options.headers || {})
+            }
         });
         return response;
     } catch (error) {
-        console.error(`İstek hatası (${retries} deneme kaldı):`, error.message);
         if (retries > 0) {
-            console.log(`Yeniden deneniyor... Kalan deneme: ${retries}`);
-            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 saniye bekle
-            return fetchWithRetry(url, options, retries - 1);
+            await new Promise(r => setTimeout(r, 1000));
+            return fetchSafe(url, options, retries - 1);
         }
         throw error;
     }
-};
+}
 
-// Statik dosyaların sunulması
-app.use('/public', express.static(path.join(__dirname, 'public'), {
-    setHeaders: (res, path, stat) => {
-        if (path.endsWith('.css')) {
-            res.set('Content-Type', 'text/css');
+// İngilizce metinleri Türkçeye çevirme yardımcısı
+async function translateToTurkish(text) {
+    if (!text || typeof text !== 'string') return '';
+    try {
+        const encodedText = encodeURIComponent(text);
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodedText}`;
+        const response = await fetchSafe(url);
+        if (!response.ok) return text;
+        const data = await response.json();
+        if (data && data[0]) {
+            return data[0].map(item => item[0]).join('');
+        }
+        return text;
+    } catch (error) {
+        return text;
+    }
+}
+
+// Film için YouTube fragman linki bul
+async function getMovieTrailer(movieId) {
+    try {
+        const res = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=tr-TR`);
+        if (res.ok) {
+            const data = await res.json();
+            const trTrailer = data.results?.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
+            if (trTrailer) return trTrailer.key;
+        }
+
+        // Türkçe yoksa orijinal / İngilizce dene
+        const enRes = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=en-US`);
+        if (enRes.ok) {
+            const data = await enRes.json();
+            const enTrailer = data.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer') || data.results?.[0];
+            if (enTrailer && enTrailer.site === 'YouTube') return enTrailer.key;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Film detaylarını al (TR + EN fallback)
+async function getMovieDetails(movieId) {
+    try {
+        const [trRes, enRes] = await Promise.all([
+            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=tr-TR`),
+            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=en-US`)
+        ]);
+
+        const trData = trRes.ok ? await trRes.json() : {};
+        const enData = enRes.ok ? await enRes.json() : {};
+
+        let title = trData.title || enData.title || 'İsimsiz Film';
+        let overview = trData.overview;
+        let isTranslated = false;
+
+        if (!overview && enData.overview) {
+            overview = await translateToTurkish(enData.overview);
+            isTranslated = true;
+        }
+
+        const trailerKey = await getMovieTrailer(movieId);
+        const genres = (trData.genres || enData.genres || []).map(g => g.name);
+
+        return {
+            id: movieId,
+            title: title,
+            original_title: enData.original_title || trData.original_title || title,
+            overview: overview || 'Bu film için henüz Türkçe açıklama eklenmemiş.',
+            isTranslated,
+            poster_path: trData.poster_path || enData.poster_path || null,
+            backdrop_path: trData.backdrop_path || enData.backdrop_path || null,
+            release_date: trData.release_date || enData.release_date || '',
+            vote_average: typeof trData.vote_average === 'number' ? trData.vote_average.toFixed(1) : (enData.vote_average ? enData.vote_average.toFixed(1) : null),
+            vote_count: trData.vote_count || enData.vote_count || 0,
+            runtime: trData.runtime || enData.runtime || null,
+            genres: genres,
+            trailerKey: trailerKey,
+            tmdb_url: `https://www.themoviedb.org/movie/${movieId}`
+        };
+    } catch (error) {
+        console.error(`Film #${movieId} detay hatası:`, error.message);
+        return null;
+    }
+}
+
+// -------------------------------------------------------------------
+// AI Öneri Motoru (Gemini veya OpenAI)
+// -------------------------------------------------------------------
+async function getAiRecommendations(promptText, numberOfSuggestions, genreName) {
+    // 1. Google Gemini API
+    if (GEMINI_API_KEY) {
+        try {
+            const systemPrompt = `Sen dünyanın en iyi sinema eleştirmeni ve AI film öneri uzmanısın.
+Kullanıcının film arayışına veya ruh haline göre en uygun ${numberOfSuggestions} filmi öner.
+${genreName && genreName !== 'all' ? `Tercih edilen tür: ${genreName}.` : ''}
+
+Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya sonunda markdown (örnek: \`\`\`json) olmasın.
+Örnek format:
+[
+  {
+    "title": "Başlangıç",
+    "original_title": "Inception",
+    "year": 2010,
+    "aiReason": "Kullanıcının zihin bükücü ve katmanlı kurgu arayışına mükemmel uyum sağlayan, rüya içinde rüya konseptiyle sinema tarihine geçen bir başyapıt."
+  }
+]`;
+
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const res = await fetchSafe(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [
+                        { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcı İsteği / Film / Mood: "${promptText}"` }] }
+                    ],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 1000
+                    }
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(rawText);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return { source: 'gemini', list: parsed };
+                }
+            }
+        } catch (e) {
+            console.error('Gemini AI öneri hatası:', e.message);
         }
     }
+
+    // 2. OpenAI API
+    if (OPENAI_API_KEY) {
+        try {
+            const res = await fetchSafe('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `Sen AI film öneri uzmanısın. Kullanıcıya en uygun ${numberOfSuggestions} filmi JSON array olarak öner. Her eleman: { "title": "...", "original_title": "...", "year": 2020, "aiReason": "..." } içersin. Sadece saf JSON dön.`
+                        },
+                        {
+                            role: 'user',
+                            content: `İstek: "${promptText}". ${genreName && genreName !== 'all' ? 'Tür: ' + genreName : ''}`
+                        }
+                    ],
+                    temperature: 0.7
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                let raw = data.choices?.[0]?.message?.content || '';
+                raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return { source: 'openai', list: parsed };
+                }
+            }
+        } catch (e) {
+            console.error('OpenAI öneri hatası:', e.message);
+        }
+    }
+
+    return null;
+}
+
+// -------------------------------------------------------------------
+// Statik Dosyalar ve Sayfa Yönlendirmeleri
+// -------------------------------------------------------------------
+app.use('/public', express.static(path.join(__dirname, 'public'), {
+    maxAge: '1d'
 }));
 
-// Pages klasöründeki dosyaları sunmak için
 app.use('/pages', express.static(path.join(__dirname, 'pages')));
 
-app.use(express.json());
-
-// MIME type ayarları
-app.use((req, res, next) => {
-    if (req.url.endsWith('.css')) {
-        res.type('text/css');
-    }
-    next();
-});
-
-// Ana sayfa yönlendirmesi
+// Ana sayfa
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Cinebot sayfası yönlendirmesi
+// Cinebot sayfası
 app.get('/cinebot', (req, res) => {
     res.sendFile(path.join(__dirname, 'pages', 'cinebot.html'));
 });
 
-// İngilizce metni Türkçeye çevir
-async function translateToTurkish(text) {
+// FilmSözlük sayfası
+app.get(['/filmsozluk', '/filmsözlük'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages', 'filmsozluk.html'));
+});
+
+// Giriş / Kayıt sayfası
+app.get('/auth', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages', 'auth.html'));
+});
+
+// -------------------------------------------------------------------
+// API ENDPOINTS
+// -------------------------------------------------------------------
+
+// Sağlık kontrolü
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'AiFlix Backend',
+        hasGemini: !!GEMINI_API_KEY,
+        hasOpenAI: !!OPENAI_API_KEY,
+        hasTmdb: !!TMDB_API_KEY,
+        uptime: process.uptime()
+    });
+});
+
+// Trend Filmler (Ana sayfa için)
+app.get('/api/trending', async (req, res) => {
     try {
-        // URL'yi encode et
-        const encodedText = encodeURIComponent(text);
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodedText}`;
-        
-        const response = await fetch(url);
-        
+        const response = await fetchSafe(`${TMDB_BASE_URL}/trending/movie/week?api_key=${TMDB_API_KEY}&language=tr-TR`);
         if (!response.ok) {
-            throw new Error('Çeviri API hatası');
+            return res.status(500).json({ error: 'Trend filmler alınamadı' });
         }
-
         const data = await response.json();
-        
-        // Google Translate yanıtını işle
-        let translatedText = '';
-        if (data && data[0]) {
-            translatedText = data[0]
-                .map(item => item[0])
-                .join('');
-        }
-
-        return translatedText || null;
+        const movies = (data.results || []).slice(0, 12).map(m => ({
+            id: m.id,
+            title: m.title || m.original_title,
+            original_title: m.original_title,
+            poster_path: m.poster_path,
+            backdrop_path: m.backdrop_path,
+            vote_average: m.vote_average ? m.vote_average.toFixed(1) : null,
+            release_date: m.release_date,
+            overview: m.overview || 'Özet bulunamadı.'
+        }));
+        res.json({ results: movies });
     } catch (error) {
-        console.error('Çeviri hatası:', error);
-        return null;
+        console.error('Trend filmler hatası:', error.message);
+        res.status(500).json({ error: error.message });
     }
-}
+});
 
-// Film detaylarını al (hem TR hem EN)
-async function getMovieDetails(movieId) {
+// Belirli bir filmin fragmanını getir
+app.get('/api/trailer/:movieId', async (req, res) => {
     try {
-        // Türkçe detayları al
-        const trResponse = await fetchWithRetry(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=tr-TR`);
-        const trData = await trResponse.json();
-        
-        // İngilizce detayları al
-        const enResponse = await fetchWithRetry(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=en-US`);
-        const enData = await enResponse.json();
-        
-        let overview = trData.overview;
-        let title = trData.title;
-        let isTranslated = false;
-        
-        // Eğer Türkçe başlık yoksa, İngilizce başlığı çevir
-        if (!title && enData.title) {
-            const translatedTitle = await translateToTurkish(enData.title);
-            title = translatedTitle || enData.title;
-        }
-        
-        // Eğer Türkçe açıklama yoksa ve İngilizce açıklama varsa, çeviri yap
-        if (!overview && enData.overview) {
-            const translatedOverview = await translateToTurkish(enData.overview);
-            overview = translatedOverview;
-            isTranslated = true;
-        }
-        
-        return {
-            title: title || enData.title,
-            overview: overview ? (isTranslated ? `${overview} <span class="translated-text">(automatically translated via google translate api)</span>` : overview) : (enData.overview || 'Film açıklaması bulunamadı.'),
-            poster_path: trData.poster_path || enData.poster_path
-        };
+        const trailerKey = await getMovieTrailer(req.params.movieId);
+        res.json({ trailerKey, youtubeUrl: trailerKey ? `https://www.youtube.com/watch?v=${trailerKey}` : null });
     } catch (error) {
-        console.error('Film detayları alınırken hata:', error);
-        return null;
+        res.status(500).json({ error: error.message });
     }
-}
+});
 
-// Film önerisi endpoint'i
+// Film Arama
+app.get('/api/search', async (req, res) => {
+    try {
+        const query = req.query.q;
+        if (!query) return res.status(400).json({ error: 'Arama terimi girilmedi' });
+
+        const response = await fetchSafe(`${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=tr-TR`);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Ana Film Önerisi Endpoint'i
 app.post('/api/movie-suggestions', async (req, res) => {
     try {
-        const { movieName, numberOfSuggestions, genre } = req.body;
+        const { movieName, numberOfSuggestions = 4, genre = 'all', mode = 'movie' } = req.body;
 
-        if (!movieName) {
-            return res.status(400).json({ error: 'Film adı gerekli' });
+        if (!movieName || typeof movieName !== 'string' || !movieName.trim()) {
+            return res.status(400).json({ error: 'Lütfen bir film adı veya aradığınız film tarzını girin.' });
         }
 
-        console.log('Film arama isteği:', movieName);
+        const count = Math.min(Math.max(parseInt(numberOfSuggestions) || 4, 1), 10);
+        const targetGenreId = GENRE_MAP[genre] || null;
+        const targetGenreName = targetGenreId ? GENRE_NAMES_TR[targetGenreId] : null;
 
-        // TMDB'den film detaylarını al
-        const movieResponse = await fetchWithRetry(`${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(movieName)}&language=tr-TR`);
-        
-        if (!movieResponse.ok) {
-            const errorData = await movieResponse.json();
-            throw new Error(`TMDB API hatası: ${errorData.status_message || movieResponse.statusText}`);
+        console.log(`[AiFlix] İstek: "${movieName}", Adet: ${count}, Tür: ${genre} (${targetGenreName || 'Tümü'}), Mod: ${mode}`);
+
+        let originalMovieData = null;
+        let suggestionsList = [];
+        let engineUsed = 'tmdb_smart';
+
+        // 1. ADIM: Yapay Zeka (Gemini / OpenAI) Denemesi
+        const aiResult = await getAiRecommendations(movieName, count, targetGenreName);
+
+        if (aiResult && aiResult.list && aiResult.list.length > 0) {
+            engineUsed = aiResult.source;
+            console.log(`[AiFlix] AI (${engineUsed}) ${aiResult.list.length} film önerdi, TMDB ile eşleştiriliyor...`);
+
+            // AI'ın önerdiği filmleri TMDB'den detaylandır
+            const enrichedAiMovies = await Promise.all(
+                aiResult.list.slice(0, count).map(async (item) => {
+                    try {
+                        const searchUrl = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(item.original_title || item.title)}&language=tr-TR${item.year ? `&year=${item.year}` : ''}`;
+                        const sRes = await fetchSafe(searchUrl);
+                        const sData = await sRes.json();
+                        const found = sData.results?.[0];
+
+                        if (found) {
+                            const details = await getMovieDetails(found.id);
+                            if (details) {
+                                return {
+                                    ...details,
+                                    aiReason: item.aiReason || `${item.title}, aradığınız temaya ve sinematik atmosfere harika uyum sağlıyor.`
+                                };
+                            }
+                        }
+
+                        // TMDB'de tam bulunamazsa AI verisini koru
+                        return {
+                            id: null,
+                            title: item.title,
+                            original_title: item.original_title || item.title,
+                            overview: item.aiReason || 'Yapay zeka tarafından özel olarak seçilmiş öneri.',
+                            poster_path: null,
+                            release_date: item.year ? `${item.year}` : '',
+                            vote_average: '8.0',
+                            genres: targetGenreName ? [targetGenreName] : ['Özel Seçim'],
+                            aiReason: item.aiReason
+                        };
+                    } catch (e) {
+                        return null;
+                    }
+                })
+            );
+
+            suggestionsList = enrichedAiMovies.filter(Boolean);
         }
 
-        const movieData = await movieResponse.json();
-        console.log('Film arama sonucu:', movieData.results?.length || 0, 'sonuç bulundu');
+        // 2. ADIM: AI yoksa veya yetersiz sonuç verdiyse Akıllı TMDB Algoritması
+        if (suggestionsList.length === 0) {
+            console.log('[AiFlix] TMDB Akıllı Algoritması devreye giriyor...');
+            engineUsed = 'tmdb_smart';
 
-        if (!movieData.results || movieData.results.length === 0) {
-            return res.status(404).json({ error: 'Film bulunamadı' });
+            // Kullanıcının yazdığı filmi TMDB'de ara
+            const movieSearchRes = await fetchSafe(
+                `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(movieName)}&language=tr-TR`
+            );
+            const movieSearchData = await movieSearchRes.json();
+            const foundMovie = movieSearchData.results?.[0];
+
+            let candidateMovies = [];
+
+            if (foundMovie) {
+                // Bulunan film detayları
+                originalMovieData = await getMovieDetails(foundMovie.id);
+
+                // Hem recommendations hem similar uç noktalarını birleştirerek zengin bir havuz elde et
+                const [recRes, simRes] = await Promise.all([
+                    fetchSafe(`${TMDB_BASE_URL}/movie/${foundMovie.id}/recommendations?api_key=${TMDB_API_KEY}&language=tr-TR`),
+                    fetchSafe(`${TMDB_BASE_URL}/movie/${foundMovie.id}/similar?api_key=${TMDB_API_KEY}&language=tr-TR`)
+                ]);
+
+                const recData = recRes.ok ? await recRes.json() : { results: [] };
+                const simData = simRes.ok ? await simRes.json() : { results: [] };
+
+                const pool = [...(recData.results || []), ...(simData.results || [])];
+                const seen = new Set([foundMovie.id]);
+
+                pool.forEach(m => {
+                    if (!seen.has(m.id)) {
+                        seen.add(m.id);
+                        candidateMovies.push(m);
+                    }
+                });
+            }
+
+            // Eğer spesifik film bulunamadıysa veya havuz azsa, türe veya popülerliğe göre keşfet
+            if (candidateMovies.length === 0 || candidateMovies.length < count) {
+                const genreFilter = targetGenreId ? `&with_genres=${targetGenreId}` : '';
+                const discRes = await fetchSafe(
+                    `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=tr-TR&sort_by=popularity.desc&page=1${genreFilter}`
+                );
+                if (discRes.ok) {
+                    const discData = await discRes.json();
+                    (discData.results || []).forEach(m => {
+                        if (!candidateMovies.some(c => c.id === m.id)) {
+                            candidateMovies.push(m);
+                        }
+                    });
+                }
+            }
+
+            // Tür filtresi varsa uygula
+            let filtered = candidateMovies;
+            if (targetGenreId) {
+                const genreMatches = candidateMovies.filter(m => m.genre_ids && m.genre_ids.includes(targetGenreId));
+                if (genreMatches.length > 0) {
+                    filtered = genreMatches;
+                }
+            }
+
+            // Puan ve popülerliğe göre sırala
+            filtered.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+
+            const selectedCandidates = filtered.slice(0, count);
+
+            if (selectedCandidates.length === 0) {
+                return res.status(404).json({ error: 'Aradığınız kriterlere uygun film önerisi bulunamadı.' });
+            }
+
+            // Her film için detayları ve AI tarzı nedenini oluştur
+            suggestionsList = await Promise.all(
+                selectedCandidates.map(async (movie) => {
+                    const details = await getMovieDetails(movie.id);
+                    if (!details) return null;
+
+                    const matchReason = originalMovieData
+                        ? `"${originalMovieData.title}" filmindeki atmosfer, konu derinliği ve ${targetGenreName || (details.genres[0] || 'sinematik')} unsurları seven izleyiciler için yüksek eşleşme puanına (${details.vote_average || '8.0'}/10) sahip.`
+                        : `"${movieName}" arayışınıza ve ${targetGenreName || 'film'} tutkunuzun beklentilerine hitap eden, güçlü anlatımıyla öne çıkan bir yapım.`;
+
+                    return {
+                        ...details,
+                        aiReason: matchReason
+                    };
+                })
+            );
+
+            suggestionsList = suggestionsList.filter(Boolean);
         }
 
-        const movie = movieData.results[0];
-        console.log('Seçilen film:', movie.title);
-        
-        // TMDB'den benzer filmler al
-        const similarMoviesResponse = await fetchWithRetry(
-            `${TMDB_BASE_URL}/movie/${movie.id}/similar?api_key=${TMDB_API_KEY}&language=tr-TR`
-        );
-        
-        if (!similarMoviesResponse.ok) {
-            const errorData = await similarMoviesResponse.json();
-            throw new Error(`Benzer filmler alınırken hata: ${errorData.status_message || similarMoviesResponse.statusText}`);
+        // Eğer orijinal film varsa ama detay alınmadıysa ilk aramadan çek
+        if (!originalMovieData) {
+            originalMovieData = {
+                title: movieName,
+                overview: `"${movieName}" için yapay zeka ve TMDB analizleri tamamlandı.`,
+                poster_path: suggestionsList[0]?.backdrop_path || null
+            };
         }
-
-        const similarMovies = await similarMoviesResponse.json();
-        console.log('Benzer filmler bulundu:', similarMovies.results?.length || 0);
-
-        // Genre ID'sini bul
-        const genreMap = {
-            'action': 28,
-            'adventure': 12,
-            'horror': 27,
-            'comedy': 35,
-            'drama': 18,
-            'sci-fi': 878
-        };
-
-        const targetGenreId = genreMap[genre];
-        console.log('Seçilen tür ID:', targetGenreId);
-
-        // Filmleri filtrele
-        const filteredMovies = similarMovies.results
-            .filter(movie => movie.genre_ids.includes(targetGenreId))
-            .slice(0, numberOfSuggestions);
-
-        console.log('Filtrelenmiş film sayısı:', filteredMovies.length);
-
-        if (filteredMovies.length === 0) {
-            return res.status(404).json({ error: 'Seçilen türde benzer film bulunamadı' });
-        }
-
-        // Her film için detaylı bilgi al
-        const detailedMovies = await Promise.all(
-            filteredMovies.map(async (movie) => {
-                const details = await getMovieDetails(movie.id);
-                return details || movie;
-            })
-        );
-
-        // Orijinal film için detaylı bilgi al
-        const originalMovieDetails = await getMovieDetails(movie.id);
 
         res.json({
-            originalMovie: originalMovieDetails || movie,
-            suggestions: detailedMovies || []
+            originalMovie: originalMovieData,
+            suggestions: suggestionsList,
+            engine: engineUsed,
+            count: suggestionsList.length
         });
 
     } catch (error) {
-        console.error('Film önerisi hatası:', error);
-        res.status(500).json({ 
-            error: error.message || 'Bilinmeyen bir hata oluştu',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        console.error('[AiFlix] Film önerisi genel hatası:', error);
+        res.status(500).json({
+            error: 'Film önerileri alınırken bir hata oluştu: ' + error.message
         });
     }
 });
 
+// Port ve Başlatma
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server http://localhost:${PORT} adresinde çalışıyor`);
-}); 
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🎬 AiFlix sunucusu http://localhost:${PORT} adresinde hazır!`);
+    });
+}
+
+module.exports = app;

@@ -211,9 +211,9 @@
             </div>
             <div class="center">
                 <a href="/">ANASAYFA</a>
-                <a href="cinebot.html">CINEBOT</a>
-                <a href="auth.html" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
-                <a href="filmsözlük.html">FİLMSÖZLÜK</a>
+                <a href="/cinebot">CINEBOT</a>
+                <a href="/auth" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
+                <a href="/filmsozluk">FİLMSÖZLÜK</a>
             </div>
             <div class="right">
                 <span id="userProfileContainer">
@@ -289,7 +289,7 @@
         // Kayıt formu işlemi
         registerForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
             const username = document.getElementById('username').value;
@@ -312,7 +312,7 @@
         // Giriş formu işlemi
         loginForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
 
@@ -336,4 +336,4 @@
     <script src="/public/js/scroll.js"></script>
 </body>
 
-</html> 
+</html>

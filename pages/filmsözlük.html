@@ -251,9 +251,9 @@
             </div>
             <div class="center">
                 <a href="/">ANASAYFA</a>
-                <a href="cinebot.html">CINEBOT</a>
-                <a href="auth.html" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
-                <a href="filmsözlük.html">FİLMSÖZLÜK</a>
+                <a href="/cinebot">CINEBOT</a>
+                <a href="/auth" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
+                <a href="/filmsozluk" style="color: #ff6b08; font-weight: bold;">FİLMSÖZLÜK</a>
             </div>
             <div class="right">
                 <span id="userProfileContainer">
@@ -330,6 +330,20 @@
 
             // Başlıkları yükle
             loadEntries();
+
+            // URL Parametresi Kontrolü (?topic=Inception)
+            const urlParams = new URLSearchParams(window.location.search);
+            const topicParam = urlParams.get('topic') || urlParams.get('title');
+            if (topicParam) {
+                const titleInput = document.getElementById('entryTitle');
+                if (titleInput) {
+                    titleInput.value = topicParam;
+                    setTimeout(() => {
+                        titleInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        document.getElementById('entryContent')?.focus();
+                    }, 400);
+                }
+            }
         };
 
         async function createEntry() {
