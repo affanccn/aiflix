@@ -278,11 +278,13 @@
         </div>
     </div>
 
-    <script type="module" src="/public/js/firebase-config.js"></script>
-    <script type="module" src="/public/js/auth.js"></script>
-    <script type="module">
-        import { loginUser, registerUser } from '/public/js/auth.js';
-
+    <!-- Firebase Compat SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="/public/js/firebase-config.js"></script>
+    <script src="/public/js/auth.js"></script>
+    <script>
         const registerForm = document.getElementById('registerForm');
         const loginForm = document.getElementById('loginForm');
 
@@ -296,7 +298,7 @@
             const profilePicture = document.getElementById('profilePicture').value;
 
             try {
-                const result = await registerUser(email, password, username, profilePicture);
+                const result = await window.registerUser(email, password, username, profilePicture);
                 if (result.success) {
                     alert('Kayıt başarılı! Anasayfaya yönlendiriliyorsunuz.');
                     window.location.href = '/';
@@ -317,7 +319,7 @@
             const password = document.getElementById('loginPassword').value;
 
             try {
-                const result = await loginUser(email, password);
+                const result = await window.loginUser(email, password);
                 if (result.success) {
                     alert('Giriş başarılı! Anasayfaya yönlendiriliyorsunuz.');
                     window.location.href = '/';

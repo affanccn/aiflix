@@ -297,7 +297,9 @@
     </div>
 
     <script type="module">
-        import { auth, db } from '/public/js/firebase-config.js';
+        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { 
             collection, 
             addDoc, 
@@ -311,6 +313,20 @@
             getDoc,
             increment 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyDxzwT5RvvKrJq8qcR1AQGoMCvZU7keQsk",
+          authDomain: "aiflix-f7b94.firebaseapp.com",
+          projectId: "aiflix-f7b94",
+          storageBucket: "aiflix-f7b94.firebasestorage.app",
+          messagingSenderId: "149472297975",
+          appId: "1:149472297975:web:2103ee6dc06a34e64ea4f2",
+          measurementId: "G-QC5JTQH1KD"
+        };
+
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         function initFilmSozluk() {
             // Firebase'den giriş yapan kullanıcının bilgilerini al

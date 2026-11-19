@@ -1,15 +1,4 @@
-import { auth, db } from './firebase-config.js';
-import { 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword,
-    signOut,
-    updateProfile
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { 
-    doc, 
-    setDoc, 
-    getDoc 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// AiFlix - Auth Helper Functions (Firebase Compat)
 
 const PROFILE_PICTURES = [
     '/public/img/user/user-1.jpg',
@@ -40,33 +29,38 @@ function getTurkishAuthErrorMessage(code) {
 }
 
 // Kullanıcı kaydı
-export async function registerUser(email, password, username, selectedProfilePicture) {
+async function registerUser(email, password, username, selectedProfilePicture) {
+    if (!window.auth) {
+        return { success: false, message: 'Firebase servisi henüz yüklenemedi.' };
+    }
+
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await window.auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
 
         const photoURL = selectedProfilePicture || PROFILE_PICTURES[0];
 
-        await updateProfile(user, {
+        await user.updateProfile({
             displayName: username,
             photoURL: photoURL
         });
 
         // Firestore kullanıcı dokümanı
-        try {
-            const userDocRef = doc(db, "users", user.uid);
-            await setDoc(userDocRef, {
-                uid: user.uid,
-                email: email,
-                username: username,
-                photoURL: photoURL,
-                createdAt: new Date().toISOString(),
-                favorites: [],
-                watchlist: [],
-                reviews: []
-            });
-        } catch (dbErr) {
-            console.warn("Firestore user sync uyarısı:", dbErr.message);
+        if (window.db) {
+            try {
+                await window.db.collection("users").doc(user.uid).set({
+                    uid: user.uid,
+                    email: email,
+                    username: username,
+                    photoURL: photoURL,
+                    createdAt: new Date().toISOString(),
+                    favorites: [],
+                    watchlist: [],
+                    reviews: []
+                });
+            } catch (dbErr) {
+                console.warn("Firestore kullanıcı kaydı uyarısı:", dbErr.message);
+            }
         }
 
         localStorage.setItem('loggedInUser', username);
@@ -83,24 +77,29 @@ export async function registerUser(email, password, username, selectedProfilePic
 }
 
 // Kullanıcı girişi
-export async function loginUser(email, password) {
+async function loginUser(email, password) {
+    if (!window.auth) {
+        return { success: false, message: 'Firebase servisi henüz yüklenemedi.' };
+    }
+
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
 
         let username = user.displayName;
         let photoURL = user.photoURL || PROFILE_PICTURES[0];
 
-        try {
-            const userDocRef = doc(db, "users", user.uid);
-            const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-                username = userData.username || username;
-                photoURL = userData.photoURL || photoURL;
+        if (window.db) {
+            try {
+                const userDoc = await window.db.collection("users").doc(user.uid).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    username = userData.username || username;
+                    photoURL = userData.photoURL || photoURL;
+                }
+            } catch (dbErr) {
+                console.warn("Firestore profil çekme uyarısı:", dbErr.message);
             }
-        } catch (dbErr) {
-            console.warn("Firestore profil çekme uyarısı:", dbErr.message);
         }
 
         const displayName = username || (email ? email.split('@')[0] : 'Kullanıcı');
@@ -118,9 +117,9 @@ export async function loginUser(email, password) {
 }
 
 // Çıkış yap
-export async function logoutUser() {
+async function logoutUser() {
     try {
-        await signOut(auth);
+        if (window.auth) await window.auth.signOut();
         localStorage.removeItem('loggedInUser');
         localStorage.removeItem('userProfilePicture');
         return { success: true, message: "Çıkış başarılı!" };
@@ -132,3 +131,8 @@ export async function logoutUser() {
         };
     }
 }
+
+// Global scope'a bağla
+window.registerUser = registerUser;
+window.loginUser = loginUser;
+window.logoutUser = logoutUser;

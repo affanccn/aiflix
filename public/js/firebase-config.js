@@ -1,8 +1,4 @@
-// Firebase yapılandırması
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+// Firebase Configuration & Global Initialization
 const firebaseConfig = {
   apiKey: "AIzaSyDxzwT5RvvKrJq8qcR1AQGoMCvZU7keQsk",
   authDomain: "aiflix-f7b94.firebaseapp.com",
@@ -13,9 +9,11 @@ const firebaseConfig = {
   measurementId: "G-QC5JTQH1KD"
 };
 
-// Firebase'i başlat
-const app = initializeApp(firebaseConfig);
-
-// Auth ve Firestore servislerini al
-export const auth = getAuth(app);
-export const db = getFirestore(app); 
+// Initialize Firebase if compat SDK is loaded
+if (typeof firebase !== 'undefined') {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  window.auth = firebase.auth();
+  window.db = firebase.firestore();
+}
