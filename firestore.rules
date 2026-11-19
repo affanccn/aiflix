@@ -1,0 +1,214 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isSafeImageUrl(url) {
+      return url == null
+        || url == ''
+        || (url is string && url.size() <= 1000 && (
+          url.matches('^https://firebasestorage\\.googleapis\\.com/.*')
+          || url.matches('^https://[a-zA-Z0-9-]+\\.firebasestorage\\.app/.*')
+          || url.matches('^https://image\\.tmdb\\.org/t/p/.*')
+          || url.matches('^https://lh3\\.googleusercontent\\.com/.*')
+          || url.matches('^/img/user/[a-zA-Z0-9._-]+$')
+          || url.matches('^/public/img/user/[a-zA-Z0-9._-]+$')
+        ));
+    }
+
+    function currentLikesCount(data) {
+      return 'likesCount' in data && data.likesCount is int
+        ? data.likesCount
+        : ('likes' in data && data.likes is int ? data.likes : 0);
+    }
+
+    function currentCommentsCount(data) {
+      return 'commentsCount' in data && data.commentsCount is int
+        ? data.commentsCount
+        : 0;
+    }
+
+    // FilmSözlük Başlıkları
+    match /entries/{entryId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && isValidString(request.resource.data.title, 3, 120)
+        && isValidString(request.resource.data.content, 10, 5000)
+        && isValidString(request.resource.data.author, 1, 60)
+        && isSafeImageUrl(request.resource.data.authorImage)
+        && isSafeImageUrl(request.resource.data.imageUrl)
+        && request.resource.data.likesCount == 0
+        && request.resource.data.commentsCount == 0
+        && request.resource.data.keys().hasOnly([
+          'title', 'content', 'author', 'authorId', 'authorImage',
+          'imageUrl', 'movieId', 'movieTitle', 'likesCount', 'commentsCount',
+          'createdAt', 'updatedAt'
+        ]);
+
+      allow update: if isSignedIn() && (
+        // 1. Sadece başlık sahibi başlık metnini/görselini düzenleyebilir
+        (
+          isOwner(resource.data.authorId)
+          && request.resource.data.authorId == resource.data.authorId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'imageUrl', 'updatedAt'])
+          && isValidString(request.resource.data.title, 3, 120)
+          && isValidString(request.resource.data.content, 10, 5000)
+          && isSafeImageUrl(request.resource.data.imageUrl)
+        )
+        ||
+        // 2. Beğeni sayacı yalnızca ilgili likes/{uid} dokümanı ile atomik +1 / -1 değişebilir
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+          && request.resource.data.likesCount is int
+          && request.resource.data.likesCount >= 0
+          && (
+            (
+              request.resource.data.likesCount == currentLikesCount(resource.data) + 1
+              && !exists(/databases/$(database)/documents/entries/$(entryId)/likes/$(request.auth.uid))
+              && existsAfter(/databases/$(database)/documents/entries/$(entryId)/likes/$(request.auth.uid))
+            )
+            ||
+            (
+              request.resource.data.likesCount == currentLikesCount(resource.data) - 1
+              && exists(/databases/$(database)/documents/entries/$(entryId)/likes/$(request.auth.uid))
+              && !existsAfter(/databases/$(database)/documents/entries/$(entryId)/likes/$(request.auth.uid))
+            )
+          )
+        )
+        ||
+        // 3. Yorum sayacı yalnızca +1 veya -1 değişebilir
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount'])
+          && request.resource.data.commentsCount is int
+          && request.resource.data.commentsCount >= 0
+          && (
+            request.resource.data.commentsCount == currentCommentsCount(resource.data) + 1
+            || request.resource.data.commentsCount == currentCommentsCount(resource.data) - 1
+          )
+        )
+      );
+
+      allow delete: if isOwner(resource.data.authorId);
+
+      // Başlık Beğenileri Alt Koleksiyonu
+      match /likes/{uid} {
+        allow read: if true;
+        allow create: if isOwner(uid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+        allow delete: if isOwner(uid);
+        allow update: if false;
+      }
+
+      // Başlık Yorumları Alt Koleksiyonu (parentId ile yanıt destekli)
+      match /comments/{commentId} {
+        allow read: if true;
+
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && isValidString(request.resource.data.author, 1, 60)
+          && isValidString(request.resource.data.content, 1, 2000)
+          && isSafeImageUrl(request.resource.data.authorImage)
+          && (request.resource.data.parentId == null || isValidString(request.resource.data.parentId, 1, 128))
+          && request.resource.data.likesCount == 0
+          && request.resource.data.keys().hasOnly([
+            'author', 'authorId', 'authorImage', 'content',
+            'parentId', 'likesCount', 'createdAt', 'updatedAt'
+          ]);
+
+        allow update: if isSignedIn() && (
+          (
+            isOwner(resource.data.authorId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'updatedAt'])
+            && isValidString(request.resource.data.content, 1, 2000)
+          )
+          ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+            && request.resource.data.likesCount is int
+            && request.resource.data.likesCount >= 0
+            && (
+              (
+                request.resource.data.likesCount == currentLikesCount(resource.data) + 1
+                && !exists(/databases/$(database)/documents/entries/$(entryId)/comments/$(commentId)/likes/$(request.auth.uid))
+                && existsAfter(/databases/$(database)/documents/entries/$(entryId)/comments/$(commentId)/likes/$(request.auth.uid))
+              )
+              ||
+              (
+                request.resource.data.likesCount == currentLikesCount(resource.data) - 1
+                && exists(/databases/$(database)/documents/entries/$(entryId)/comments/$(commentId)/likes/$(request.auth.uid))
+                && !existsAfter(/databases/$(database)/documents/entries/$(entryId)/comments/$(commentId)/likes/$(request.auth.uid))
+              )
+            )
+          )
+        );
+
+        allow delete: if isOwner(resource.data.authorId);
+
+        match /likes/{uid} {
+          allow read: if true;
+          allow create: if isOwner(uid)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+          allow delete: if isOwner(uid);
+          allow update: if false;
+        }
+      }
+    }
+
+    // İçerik Şikayetleri (Sadece giriş yapanlar oluşturabilir, admin okur)
+    match /reports/{reportId} {
+      allow read: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetType in ['entry', 'comment']
+        && isValidString(request.resource.data.targetId, 1, 128)
+        && isValidString(request.resource.data.reason, 3, 500)
+        && request.resource.data.keys().hasOnly([
+          'reporterId', 'targetType', 'targetId', 'entryId', 'reason', 'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+
+    // Kullanıcı Profili ve Kişisel Koleksiyonlar
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.uid == request.auth.uid
+        && isValidString(request.resource.data.username, 2, 40)
+        && isSafeImageUrl(request.resource.data.photoURL);
+      allow delete: if isOwner(uid);
+
+      match /favorites/{movieId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      match /watchlist/{movieId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      match /cinebotHistory/{historyId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Varsayılan: Her şeye kapalı
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

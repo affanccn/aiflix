@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="aiflixGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b08"/>
+      <stop offset="100%" stop-color="#2196f3"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0a0f1d"/>
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="none" stroke="url(#aiflixGrad)" stroke-width="22"/>
+  <path d="M188 148 L368 256 L188 364 Z" fill="url(#aiflixGrad)"/>
+</svg>
