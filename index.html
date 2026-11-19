@@ -407,61 +407,73 @@
    <script src="/public/js/search.js"></script>
    <script src="/public/js/scroll.js"></script>
 
-   <!-- Trend Filmleri Scripti (Bağımsız ve Anında Çalışır) -->
+   <!-- Trend Filmleri Scripti (Bağımsız, Hızlı ve Güvenilir) -->
    <script>
+      const FALLBACK_TRENDING = [
+          { title: "Oppenheimer", release_date: "2023-07-19", vote_average: 8.1, poster_path: "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg" },
+          { title: "Dune: Çöl Gezegeni Bölüm İki", release_date: "2024-02-27", vote_average: 8.2, poster_path: "/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg" },
+          { title: "Yıldızlararası (Interstellar)", release_date: "2014-11-05", vote_average: 8.4, poster_path: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" },
+          { title: "Başlangıç (Inception)", release_date: "2010-07-15", vote_average: 8.4, poster_path: "/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg" },
+          { title: "Gladyatör II", release_date: "2024-11-13", vote_average: 6.8, poster_path: "/2cxhvwyEwRlysAmRH4iodkvo0z5.jpg" },
+          { title: "Örümcek-Adam: Örümcek Evrenine Geçiş", release_date: "2023-05-31", vote_average: 8.3, poster_path: "/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg" }
+      ];
+
+      function renderMovies(movies) {
+          const grid = document.getElementById('trendingGrid');
+          if (!grid || !movies || movies.length === 0) return;
+
+          grid.innerHTML = movies.slice(0, 6).map(function(m) {
+              const poster = m.poster_path 
+                  ? 'https://image.tmdb.org/t/p/w500' + m.poster_path 
+                  : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80';
+              const year = m.release_date ? m.release_date.split('-')[0] : '';
+              const encodedTitle = encodeURIComponent(m.title);
+
+              return `
+                  <div class="trending-card" onclick="window.location.href='/cinebot?movie=${encodedTitle}'">
+                      <img src="${poster}" alt="${m.title}" class="trending-poster" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80'">
+                      <div class="trending-card-body">
+                          <h4 class="trending-title" title="${m.title}">${m.title}</h4>
+                          <div class="trending-meta">
+                              <span>${year}</span>
+                              <span class="rating"><i class="fa-solid fa-star"></i> ${m.vote_average || '7.5'}</span>
+                          </div>
+                          <a href="/cinebot?movie=${encodedTitle}" class="trending-btn" onclick="event.stopPropagation()">
+                              <i class="fa-solid fa-wand-magic-sparkles"></i> Benzerini Bul
+                          </a>
+                      </div>
+                  </div>
+              `;
+          }).join('');
+      }
+
       async function loadTrendingMovies() {
           const grid = document.getElementById('trendingGrid');
           if (!grid) return;
 
           try {
-              const res = await fetch('/api/trending');
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 4000);
+
+              const res = await fetch('/api/trending?t=' + Date.now(), { signal: controller.signal });
+              clearTimeout(timeout);
+
               if (!res.ok) throw new Error('Trend filmler alınamadı (Durum: ' + res.status + ')');
               const data = await res.json();
               const movies = data.results || [];
 
-              if (!movies || movies.length === 0) {
-                  grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.7);">Şu an gösterilecek trend film bulunamadı.</p>';
+              if (movies.length > 0) {
+                  renderMovies(movies);
                   return;
               }
-
-              grid.innerHTML = movies.slice(0, 6).map(function(m) {
-                  const poster = m.poster_path 
-                      ? 'https://image.tmdb.org/t/p/w500' + m.poster_path 
-                      : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80';
-                  const year = m.release_date ? m.release_date.split('-')[0] : '';
-                  const encodedTitle = encodeURIComponent(m.title);
-
-                  return `
-                      <div class="trending-card" onclick="window.location.href='/cinebot?movie=${encodedTitle}'">
-                          <img src="${poster}" alt="${m.title}" class="trending-poster" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80'">
-                          <div class="trending-card-body">
-                              <h4 class="trending-title" title="${m.title}">${m.title}</h4>
-                              <div class="trending-meta">
-                                  <span>${year}</span>
-                                  <span class="rating"><i class="fa-solid fa-star"></i> ${m.vote_average || '7.5'}</span>
-                              </div>
-                              <a href="/cinebot?movie=${encodedTitle}" class="trending-btn" onclick="event.stopPropagation()">
-                                  <i class="fa-solid fa-wand-magic-sparkles"></i> Benzerini Bul
-                              </a>
-                          </div>
-                      </div>
-                  `;
-              }).join('');
-
+              renderMovies(FALLBACK_TRENDING);
           } catch (e) {
-              console.error('Trend filmler yükleme hatası:', e);
-              grid.innerHTML = `
-                  <div style="grid-column: 1 / -1; text-align: center; padding: 25px; color: rgba(255,255,255,0.7);">
-                      <p style="margin: 0 0 10px;">Trend filmler yüklenirken bir sorun oluştu.</p>
-                      <button onclick="loadTrendingMovies()" style="padding: 8px 18px; background: #2196f3; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                          <i class="fa-solid fa-rotate-right"></i> Yeniden Dene
-                      </button>
-                  </div>
-              `;
+              console.warn('Trend filmler API uyarısı, popüler filmler yükleniyor:', e.message);
+              renderMovies(FALLBACK_TRENDING);
           }
       }
 
-      // Sayfa yüklenir yüklenmez trend filmleri getir
+      // Anında çalıştır
       loadTrendingMovies();
    </script>
 
@@ -599,26 +611,6 @@
               console.error("FilmSözlük önizleme hatası:", error);
           }
       }
-   </script>
-              previewContainer.innerHTML = `
-                  <div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: rgba(255,255,255,0.6);">
-                      <p>Sözlük başlıkları getirilemedi.</p>
-                  </div>
-              `;
-          }
-      }
-
-      // Çıkış Butonu
-      document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-          try {
-              await auth.signOut();
-              localStorage.removeItem('loggedInUser');
-              localStorage.removeItem('userProfilePicture');
-              window.location.reload();
-          } catch (error) {
-              console.error("Çıkış hatası:", error);
-          }
-      });
    </script>
 </body>
 

@@ -126,6 +126,26 @@ async function getMovieDetails(movieId) {
     }
 }
 
+// Belirli bir filmin fragman YouTube anahtarını getir
+async function getMovieTrailer(movieId) {
+    try {
+        const res = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=tr-TR`, {}, 1);
+        const data = await res.json();
+        let trailer = (data.results || []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
+
+        if (!trailer) {
+            const enRes = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=en-US`, {}, 1);
+            const enData = await enRes.json();
+            trailer = (enData.results || []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || (enData.results || [])[0];
+        }
+
+        return trailer?.key || null;
+    } catch (error) {
+        console.error(`Film #${movieId} fragman hatası:`, error.message);
+        return null;
+    }
+}
+
 // -------------------------------------------------------------------
 // AI Öneri Motoru (Gemini veya OpenAI) - Hızlı ve Zaman Aşımı Korumalı
 // -------------------------------------------------------------------
@@ -219,29 +239,36 @@ Yanıtını YALNIZCA geçerli bir JSON array olarak ver. Örnek: [{"title": "Ba�
 // Statik Dosyalar ve Sayfa Yönlendirmeleri
 // -------------------------------------------------------------------
 app.use('/public', express.static(path.join(__dirname, 'public'), {
-    maxAge: '1d'
+    maxAge: '1h'
 }));
 
 app.use('/pages', express.static(path.join(__dirname, 'pages')));
 
+function sendNoCacheHtml(res, filePath) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.sendFile(filePath);
+}
+
 // Ana sayfa
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    sendNoCacheHtml(res, path.join(__dirname, 'index.html'));
 });
 
 // Cinebot sayfası
 app.get('/cinebot', (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages', 'cinebot.html'));
+    sendNoCacheHtml(res, path.join(__dirname, 'pages', 'cinebot.html'));
 });
 
 // FilmSözlük sayfası
 app.get(['/filmsozluk', '/filmsözlük'], (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages', 'filmsozluk.html'));
+    sendNoCacheHtml(res, path.join(__dirname, 'pages', 'filmsozluk.html'));
 });
 
 // Giriş / Kayıt sayfası
 app.get('/auth', (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages', 'auth.html'));
+    sendNoCacheHtml(res, path.join(__dirname, 'pages', 'auth.html'));
 });
 
 // -------------------------------------------------------------------
@@ -311,10 +338,14 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
-// Ana Film Önerisi Endpoint'i
-app.post('/api/movie-suggestions', async (req, res) => {
+// Ana Film Önerisi Endpoint'i (POST ve GET destekli)
+app.all('/api/movie-suggestions', async (req, res) => {
     try {
-        const { movieName, numberOfSuggestions = 4, genre = 'all', mode = 'movie' } = req.body;
+        const body = req.method === 'POST' ? (req.body || {}) : (req.query || {});
+        const movieName = body.movieName || body.movie || req.query.movieName || req.query.movie;
+        const numberOfSuggestions = body.numberOfSuggestions || body.limit || req.query.numberOfSuggestions || req.query.limit || 4;
+        const genre = body.genre || req.query.genre || 'all';
+        const mode = body.mode || req.query.mode || 'movie';
 
         if (!movieName || typeof movieName !== 'string' || !movieName.trim()) {
             return res.status(400).json({ error: 'Lütfen bir film adı veya aradığınız film tarzını girin.' });

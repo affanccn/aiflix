@@ -1,9 +1,12 @@
-// Eğer searchIcon zaten tanımlanmamışsa tanımla
-if (typeof window.searchIcon === 'undefined') {
-    window.searchIcon = document.getElementById('searchIcon');
-    window.searchEngine = document.getElementById('searchEngine');
+// AiFlix - Safe Search Icon Toggle
+if (typeof window.searchIconAttached === 'undefined') {
+    window.searchIconAttached = true;
+    const sIcon = document.getElementById('searchIcon');
+    const sEngine = document.getElementById('searchEngine');
 
-    window.searchIcon.addEventListener('click', () => {
-        window.searchEngine.classList.toggle('active');
-    });
+    if (sIcon && sEngine) {
+        sIcon.addEventListener('click', () => {
+            sEngine.classList.toggle('active');
+        });
+    }
 }

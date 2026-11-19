@@ -1,5 +1,9 @@
-// Firebase Configuration & Global Initialization
-const firebaseConfig = {
+// Firebase Configuration & Global Initialization (ES Module & Global Window)
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+export const firebaseConfig = {
   apiKey: "AIzaSyDxzwT5RvvKrJq8qcR1AQGoMCvZU7keQsk",
   authDomain: "aiflix-f7b94.firebaseapp.com",
   projectId: "aiflix-f7b94",
@@ -9,11 +13,16 @@ const firebaseConfig = {
   measurementId: "G-QC5JTQH1KD"
 };
 
-// Initialize Firebase if compat SDK is loaded
-if (typeof firebase !== 'undefined') {
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  window.auth = firebase.auth();
-  window.db = firebase.firestore();
+export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Global window erişimi
+if (typeof window !== 'undefined') {
+  window.firebaseConfig = firebaseConfig;
+  window.firebaseApp = app;
+  window.auth = auth;
+  window.db = db;
 }
+
+export default app;
