@@ -416,8 +416,8 @@
           limit 
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-      // Sayfa Yüklendiğinde
-      window.addEventListener('DOMContentLoaded', async () => {
+      // Sayfa Yüklendiğinde Başlat
+      function initHomePage() {
           // 1. Firebase Auth durumunu dinle
           auth.onAuthStateChanged((user) => {
               const userProfileContainer = document.getElementById("userProfileContainer");
@@ -449,12 +449,19 @@
               }
           });
 
-          // 2. Trend Filmleri Getir
-          await loadTrendingMovies();
+          // 2. Trend Filmleri Hemen Getir
+          loadTrendingMovies();
 
           // 3. FilmSözlük Başlıklarını Yükle
-          await loadFilmSözlükPreview();
-      });
+          loadFilmSözlükPreview();
+      }
+
+      // Sayfa hazırsa hemen çalıştır, değilse dinle
+      if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initHomePage);
+      } else {
+          initHomePage();
+      }
 
       // Trend Filmleri Yükleme
       async function loadTrendingMovies() {
@@ -463,12 +470,12 @@
 
           try {
               const res = await fetch('/api/trending');
-              if (!res.ok) throw new Error('Trend filmler alınamadı');
+              if (!res.ok) throw new Error('Trend filmler servisi yanıt vermedi (' + res.status + ')');
               const data = await res.json();
               const movies = data.results || [];
 
               if (movies.length === 0) {
-                  grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Henüz trend film bulunamadı.</p>';
+                  grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.7);">Şu an gösterilecek trend film bulunamadı.</p>';
                   return;
               }
 
@@ -481,7 +488,7 @@
 
                   return `
                       <div class="trending-card" onclick="window.location.href='/cinebot?movie=${encodedTitle}'">
-                          <img src="${poster}" alt="${m.title}" class="trending-poster" loading="lazy">
+                          <img src="${poster}" alt="${m.title}" class="trending-poster" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80'">
                           <div class="trending-card-body">
                               <h4 class="trending-title" title="${m.title}">${m.title}</h4>
                               <div class="trending-meta">
@@ -498,7 +505,14 @@
 
           } catch (e) {
               console.error('Trend filmler yükleme hatası:', e);
-              grid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6);">Trend filmler yüklenemedi.</p>';
+              grid.innerHTML = `
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 25px; color: rgba(255,255,255,0.7);">
+                      <p style="margin: 0 0 10px;">Trend filmler yüklenirken bir sorun oluştu.</p>
+                      <button onclick="window.location.reload()" style="padding: 8px 18px; background: #2196f3; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                          <i class="fa-solid fa-rotate-right"></i> Yeniden Dene
+                      </button>
+                  </div>
+              `;
           }
       }
 

@@ -312,7 +312,7 @@
             increment 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        window.onload = function() {
+        function initFilmSozluk() {
             // Firebase'den giriş yapan kullanıcının bilgilerini al
             auth.onAuthStateChanged((user) => {
                 if (user) {
@@ -344,7 +344,13 @@
                     }, 400);
                 }
             }
-        };
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFilmSozluk);
+        } else {
+            initFilmSozluk();
+        }
 
         async function createEntry() {
            const title = document.getElementById('entryTitle').value.trim();

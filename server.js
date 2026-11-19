@@ -15,6 +15,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Keys
 const TMDB_API_KEY = process.env.TMDB_API_KEY || "b2b675bb84525726b8c8cea1c8aed29b";
+const TMDB_ACCESS_TOKEN = process.env.TMDB_ACCESS_TOKEN || "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiMmI2NzViYjg0NTI1NzI2YjhjOGNlYTFjOGFlZDI5YiIsIm5iZiI6MTc0MjE5MjEwNS4zODcsInN1YiI6IjY3ZDdiZGU5NTk2M2ViZmZkZTdjMjBhYyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.SHoIwfLdXe8RgMv7yzmvcYNs-JXotRhdKpK5oI1IDsw";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
@@ -66,13 +67,19 @@ const GENRE_NAMES_TR = {
 // Güvenli ve hızlı fetch fonksiyonu
 async function fetchSafe(url, options = {}, retries = 1) {
     try {
+        const headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'AiFlix/2.0 (Movie Recommendation Platform)',
+            ...(options.headers || {})
+        };
+
+        if (url.includes('themoviedb.org') && TMDB_ACCESS_TOKEN && !headers['Authorization']) {
+            headers['Authorization'] = `Bearer ${TMDB_ACCESS_TOKEN}`;
+        }
+
         const response = await fetchFn(url, {
             ...options,
-            headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'AiFlix/2.0 (Movie Recommendation Platform)',
-                ...(options.headers || {})
-            }
+            headers
         });
         return response;
     } catch (error) {
