@@ -192,7 +192,7 @@ Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya son
   }
 ]`;
 
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             let res = await fetchSafe(geminiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -208,8 +208,8 @@ Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya son
             });
 
             if (!res.ok) {
-                // Model fallback: gemini-2.0-flash
-                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+                // Model fallback: gemini-flash-latest
+                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
                 res = await fetchSafe(fallbackUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -329,20 +329,6 @@ app.get('/api/health', (req, res) => {
         hasTmdb: !!TMDB_API_KEY,
         uptime: process.uptime()
     });
-});
-
-// Gemini Tanı Uç Noktası
-app.get('/api/test-gemini', async (req, res) => {
-    if (!GEMINI_API_KEY) return res.json({ error: 'GEMINI_API_KEY ayarlanmamış' });
-    try {
-        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
-        const lRes = await fetchSafe(listUrl);
-        const lData = await lRes.json();
-        const modelNames = (lData.models || []).map(m => m.name);
-        res.json({ httpStatus: lRes.status, availableModels: modelNames });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
 });
 
 // Trend Filmler (Ana sayfa için)
