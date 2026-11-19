@@ -5,20 +5,16 @@ document.addEventListener("DOMContentLoaded", function () {
     updateNavbarUser();
 
     // Topbar Arama Motoru İşlevselliği
-    const searchEngine = document.getElementById("searchEngine");
     const searchIcon = document.getElementById("searchIcon");
-    const topSearchInput = document.getElementById("topSearchInput") || searchEngine?.querySelector("input");
+    const topSearchInput = document.getElementById("topSearchInput");
 
-    if (searchIcon && searchEngine) {
-        searchIcon.addEventListener("click", function () {
-            if (searchEngine.classList.contains("active") && topSearchInput && topSearchInput.value.trim()) {
-                // Arama yap
+    if (searchIcon && topSearchInput) {
+        searchIcon.addEventListener("click", function (e) {
+            if (topSearchInput.value.trim()) {
+                e.preventDefault();
                 executeGlobalSearch(topSearchInput.value.trim());
             } else {
-                searchEngine.classList.toggle("active");
-                if (searchEngine.classList.contains("active") && topSearchInput) {
-                    topSearchInput.focus();
-                }
+                topSearchInput.focus();
             }
         });
     }
@@ -26,6 +22,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (topSearchInput) {
         topSearchInput.addEventListener("keypress", function (e) {
             if (e.key === "Enter" && this.value.trim()) {
+                e.preventDefault();
                 executeGlobalSearch(this.value.trim());
             }
         });

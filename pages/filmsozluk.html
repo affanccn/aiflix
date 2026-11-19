@@ -242,27 +242,40 @@
 </head>
 <body>
     <div class="topbar">
-        <div class="wrapper target">
+        <div class="wrapper">
             <div class="left">
-                <i class="fa-solid fa-film"></i>
-                <i class="fa-solid fa-scissors"></i>
-                <i class="fa-solid fa-photo-film"></i>
-                <i class="fa-solid fa-video"></i>
+                <div class="topbar-brands">
+                    <a href="https://www.netflix.com" target="_blank" rel="noopener" class="topbar-brand-link brand-netflix" title="Netflix">
+                        <i class="fa-brands fa-netflix"></i>
+                    </a>
+                    <a href="https://www.primevideo.com" target="_blank" rel="noopener" class="topbar-brand-link brand-amazon" title="Amazon Prime Video">
+                        <i class="fa-brands fa-amazon"></i>
+                    </a>
+                    <a href="https://tv.apple.com" target="_blank" rel="noopener" class="topbar-brand-link brand-apple" title="Apple TV+">
+                        <i class="fa-brands fa-apple"></i>
+                    </a>
+                    <a href="https://www.imdb.com" target="_blank" rel="noopener" class="topbar-brand-link brand-imdb" title="IMDb">
+                        <i class="fa-brands fa-imdb"></i>
+                    </a>
+                    <a href="https://www.youtube.com" target="_blank" rel="noopener" class="topbar-brand-link brand-youtube" title="YouTube Movies">
+                        <i class="fa-brands fa-youtube"></i>
+                    </a>
+                </div>
             </div>
             <div class="center">
-                <a href="/">ANASAYFA</a>
-                <a href="/cinebot">CINEBOT</a>
-                <a href="/auth" id="authLink" style="display: none;">GİRİŞ YAP / KAYIT OL</a>
-                <a href="/filmsozluk" style="color: #ff6b08; font-weight: bold;">FİLMSÖZLÜK</a>
+                <a href="/"><i class="fa-solid fa-house"></i> ANASAYFA</a>
+                <a href="/cinebot"><i class="fa-solid fa-robot"></i> CINEBOT AI</a>
+                <a href="/filmsozluk" class="active"><i class="fa-solid fa-comments"></i> FİLMSÖZLÜK</a>
+                <a href="/auth" id="authLink" style="display: none;"><i class="fa-solid fa-user-lock"></i> GİRİŞ / KAYIT</a>
             </div>
             <div class="right">
+                <form class="topbar-search-form" onsubmit="event.preventDefault(); const q = this.querySelector('input').value.trim(); if(q) window.location.href='/cinebot?movie=' + encodeURIComponent(q);">
+                    <input type="text" id="topSearchInput" placeholder="Film ara...">
+                    <button type="submit" id="searchIcon" title="Ara"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </form>
                 <span id="userProfileContainer">
-                    <i class="fa-solid fa-user" style="color: #fff; font-size: 24px;"></i>
+                    <i class="fa-solid fa-circle-user" style="color: #fff; font-size: 26px;"></i>
                 </span>
-                <div class="searchEngine" id="searchEngine">
-                    <input type="text" placeholder="...">
-                    <i class="fa-solid fa-magnifying-glass" id="searchIcon"></i>
-                </div>
             </div>
         </div>
     </div>
