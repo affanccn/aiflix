@@ -193,7 +193,7 @@ Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya son
 ]`;
 
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            const res = await fetchSafe(geminiUrl, {
+            let res = await fetchSafe(geminiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -202,19 +202,42 @@ Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya son
                     ],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 1000
+                        maxOutputTokens: 1200
                     }
                 })
             });
 
+            if (!res.ok) {
+                // Model fallback: gemini-2.0-flash
+                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+                res = await fetchSafe(fallbackUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [
+                            { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcı İsteği / Film / Mood: "${promptText}"` }] }
+                        ],
+                        generationConfig: {
+                            temperature: 0.7,
+                            maxOutputTokens: 1200
+                        }
+                    })
+                });
+            }
+
             if (res.ok) {
                 const data = await res.json();
                 let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(rawText);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    return { source: 'gemini', list: parsed };
+                const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return { source: 'gemini', list: parsed };
+                    }
                 }
+            } else {
+                const errBody = await res.text();
+                console.warn('[AiFlix] Gemini yanıt vermedi:', res.status, errBody);
             }
         } catch (e) {
             console.error('Gemini AI öneri hatası:', e.message);
@@ -306,6 +329,25 @@ app.get('/api/health', (req, res) => {
         hasTmdb: !!TMDB_API_KEY,
         uptime: process.uptime()
     });
+});
+
+// Gemini Tanı Uç Noktası
+app.get('/api/test-gemini', async (req, res) => {
+    if (!GEMINI_API_KEY) return res.json({ error: 'GEMINI_API_KEY ayarlanmamış' });
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const gRes = await fetchSafe(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: 'JSON formatında yanıt ver: {"status": "ok"}' }] }]
+            })
+        });
+        const gData = await gRes.json();
+        res.json({ httpStatus: gRes.status, result: gData });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Trend Filmler (Ana sayfa için)
