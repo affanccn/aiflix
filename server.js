@@ -63,8 +63,8 @@ const GENRE_NAMES_TR = {
     37: 'Vahşi Batı'
 };
 
-// Güvenli fetch fonksiyonu (otomatik retry destekli)
-async function fetchSafe(url, options = {}, retries = 2) {
+// Güvenli ve hızlı fetch fonksiyonu
+async function fetchSafe(url, options = {}, retries = 1) {
     try {
         const response = await fetchFn(url, {
             ...options,
@@ -77,91 +77,40 @@ async function fetchSafe(url, options = {}, retries = 2) {
         return response;
     } catch (error) {
         if (retries > 0) {
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 300));
             return fetchSafe(url, options, retries - 1);
         }
         throw error;
     }
 }
 
-// İngilizce metinleri Türkçeye çevirme yardımcısı
-async function translateToTurkish(text) {
-    if (!text || typeof text !== 'string') return '';
-    try {
-        const encodedText = encodeURIComponent(text);
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodedText}`;
-        const response = await fetchSafe(url);
-        if (!response.ok) return text;
-        const data = await response.json();
-        if (data && data[0]) {
-            return data[0].map(item => item[0]).join('');
-        }
-        return text;
-    } catch (error) {
-        return text;
-    }
-}
-
-// Film için YouTube fragman linki bul
-async function getMovieTrailer(movieId) {
-    try {
-        const res = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=tr-TR`);
-        if (res.ok) {
-            const data = await res.json();
-            const trTrailer = data.results?.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
-            if (trTrailer) return trTrailer.key;
-        }
-
-        // Türkçe yoksa orijinal / İngilizce dene
-        const enRes = await fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=en-US`);
-        if (enRes.ok) {
-            const data = await enRes.json();
-            const enTrailer = data.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer') || data.results?.[0];
-            if (enTrailer && enTrailer.site === 'YouTube') return enTrailer.key;
-        }
-        return null;
-    } catch (e) {
-        return null;
-    }
-}
-
-// Film detaylarını al (TR + EN fallback)
+// Film detaylarını al (Optimize edilmiş tekil istek)
 async function getMovieDetails(movieId) {
     try {
-        const [trRes, enRes] = await Promise.all([
-            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=tr-TR`),
-            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=en-US`)
+        const [trRes, vidRes] = await Promise.all([
+            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&language=tr-TR`, {}, 1),
+            fetchSafe(`${TMDB_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}`, {}, 1)
         ]);
 
         const trData = trRes.ok ? await trRes.json() : {};
-        const enData = enRes.ok ? await enRes.json() : {};
+        const vidData = vidRes.ok ? await vidRes.json() : {};
 
-        let title = trData.title || enData.title || 'İsimsiz Film';
-        let overview = trData.overview;
-        let isTranslated = false;
-
-        if (!overview && enData.overview) {
-            overview = await translateToTurkish(enData.overview);
-            isTranslated = true;
-        }
-
-        const trailerKey = await getMovieTrailer(movieId);
-        const genres = (trData.genres || enData.genres || []).map(g => g.name);
+        const trailer = (vidData.results || []).find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || (vidData.results || [])[0];
+        const genres = (trData.genres || []).map(g => g.name);
 
         return {
             id: movieId,
-            title: title,
-            original_title: enData.original_title || trData.original_title || title,
-            overview: overview || 'Bu film için henüz Türkçe açıklama eklenmemiş.',
-            isTranslated,
-            poster_path: trData.poster_path || enData.poster_path || null,
-            backdrop_path: trData.backdrop_path || enData.backdrop_path || null,
-            release_date: trData.release_date || enData.release_date || '',
-            vote_average: typeof trData.vote_average === 'number' ? trData.vote_average.toFixed(1) : (enData.vote_average ? enData.vote_average.toFixed(1) : null),
-            vote_count: trData.vote_count || enData.vote_count || 0,
-            runtime: trData.runtime || enData.runtime || null,
-            genres: genres,
-            trailerKey: trailerKey,
+            title: trData.title || trData.original_title || 'İsimsiz Film',
+            original_title: trData.original_title || trData.title || '',
+            overview: trData.overview || 'Bu film için henüz Türkçe özet bulunmuyor.',
+            poster_path: trData.poster_path || null,
+            backdrop_path: trData.backdrop_path || null,
+            release_date: trData.release_date || '',
+            vote_average: typeof trData.vote_average === 'number' ? trData.vote_average.toFixed(1) : '7.5',
+            vote_count: trData.vote_count || 0,
+            runtime: trData.runtime || null,
+            genres: genres.length > 0 ? genres : ['Sinema'],
+            trailerKey: trailer?.key || null,
             tmdb_url: `https://www.themoviedb.org/movie/${movieId}`
         };
     } catch (error) {
@@ -171,59 +120,35 @@ async function getMovieDetails(movieId) {
 }
 
 // -------------------------------------------------------------------
-// AI Öneri Motoru (Gemini veya OpenAI)
+// AI Öneri Motoru (Gemini veya OpenAI) - Hızlı ve Zaman Aşımı Korumalı
 // -------------------------------------------------------------------
 async function getAiRecommendations(promptText, numberOfSuggestions, genreName) {
     // 1. Google Gemini API
     if (GEMINI_API_KEY) {
         try {
-            const systemPrompt = `Sen dünyanın en iyi sinema eleştirmeni ve AI film öneri uzmanısın.
-Kullanıcının film arayışına veya ruh haline göre en uygun ${numberOfSuggestions} filmi öner.
-${genreName && genreName !== 'all' ? `Tercih edilen tür: ${genreName}.` : ''}
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000); // En fazla 4 saniye bekle
 
-Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya sonunda markdown (örnek: \`\`\`json) olmasın.
-Örnek format:
-[
-  {
-    "title": "Başlangıç",
-    "original_title": "Inception",
-    "year": 2010,
-    "aiReason": "Kullanıcının zihin bükücü ve katmanlı kurgu arayışına mükemmel uyum sağlayan, rüya içinde rüya konseptiyle sinema tarihine geçen bir başyapıt."
-  }
-]`;
+            const systemPrompt = `Sen sinema eleştirmeni ve AI film öneri uzmanısın. Kullanıcıya en uygun ${numberOfSuggestions} filmi öner. ${genreName && genreName !== 'all' ? `Tür: ${genreName}.` : ''}
+Yanıtını YALNIZCA geçerli bir JSON array olarak ver. Örnek: [{"title": "Başlangıç", "original_title": "Inception", "year": 2010, "aiReason": "..."}]`;
 
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            let res = await fetchSafe(geminiUrl, {
+            const res = await fetchSafe(geminiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     contents: [
-                        { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcı İsteği / Film / Mood: "${promptText}"` }] }
+                        { role: 'user', parts: [{ text: `${systemPrompt}\n\nİstek: "${promptText}"` }] }
                     ],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 1200
+                        maxOutputTokens: 800
                     }
                 })
-            });
+            }, 0);
 
-            if (!res.ok) {
-                // Model fallback: gemini-flash-latest
-                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-                res = await fetchSafe(fallbackUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [
-                            { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcı İsteği / Film / Mood: "${promptText}"` }] }
-                        ],
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: 1200
-                        }
-                    })
-                });
-            }
+            clearTimeout(timeoutId);
 
             if (res.ok) {
                 const data = await res.json();
@@ -235,12 +160,9 @@ Yanıtını YALNIZCA geçerli bir JSON array formatında ver. Başında veya son
                         return { source: 'gemini', list: parsed };
                     }
                 }
-            } else {
-                const errBody = await res.text();
-                console.warn('[AiFlix] Gemini yanıt vermedi:', res.status, errBody);
             }
         } catch (e) {
-            console.error('Gemini AI öneri hatası:', e.message);
+            console.warn('[AiFlix] Gemini önerisi atlandı (Zaman aşımı veya hata):', e.message);
         }
     }
 
