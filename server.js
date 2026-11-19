@@ -335,16 +335,11 @@ app.get('/api/health', (req, res) => {
 app.get('/api/test-gemini', async (req, res) => {
     if (!GEMINI_API_KEY) return res.json({ error: 'GEMINI_API_KEY ayarlanmamış' });
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        const gRes = await fetchSafe(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: 'JSON formatında yanıt ver: {"status": "ok"}' }] }]
-            })
-        });
-        const gData = await gRes.json();
-        res.json({ httpStatus: gRes.status, result: gData });
+        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
+        const lRes = await fetchSafe(listUrl);
+        const lData = await lRes.json();
+        const modelNames = (lData.models || []).map(m => m.name);
+        res.json({ httpStatus: lRes.status, availableModels: modelNames });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
