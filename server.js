@@ -334,9 +334,11 @@ app.get('/api/trending', async (req, res) => {
 });
 
 // Belirli bir filmin fragmanını getir
-app.get('/api/trailer/:movieId', async (req, res) => {
+app.get(['/api/trailer/:movieId', '/api/trailer'], async (req, res) => {
     try {
-        const trailerKey = await getMovieTrailer(req.params.movieId);
+        const movieId = req.params.movieId || req.query.movieId || req.query.id;
+        if (!movieId) return res.status(400).json({ error: 'Film ID gerekli' });
+        const trailerKey = await getMovieTrailer(movieId);
         res.json({ trailerKey, youtubeUrl: trailerKey ? `https://www.youtube.com/watch?v=${trailerKey}` : null });
     } catch (error) {
         res.status(500).json({ error: error.message });
