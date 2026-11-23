@@ -4,6 +4,7 @@ import {
   discoverMoviesBySignals,
   findRichTmdbMovie,
   getRichMovieMetadata,
+  getSpecificKeywordIds,
   type RichMovieMetadata,
 } from '@/lib/tmdb';
 import { GENRE_ID_TO_NAME, GENRE_SLUG_TO_ID } from '@/lib/genres';
@@ -19,16 +20,22 @@ import {
 } from '@/lib/recommendation-engine';
 
 export const GeminiRecommendationItemSchema = z.object({
-  title: z.string().min(1).max(160),
-  originalTitle: z.string().min(1).max(160),
-  year: z.number().int().min(1900).max(2035),
-  semanticMatch: z.number().min(40).max(98).optional().default(80),
-  sharedThemes: z.array(z.string().min(2).max(60)).max(4).optional().default([]),
-  aiReason: z.string().min(20).max(460),
+  title: z.string().trim().min(1).max(200),
+  originalTitle: z.string().trim().min(1).max(200),
+  year: z.coerce.number().int().min(1900).max(2035).catch(2015),
+  semanticMatch: z.coerce
+    .number()
+    .transform((n) => Math.max(40, Math.min(98, Math.round(n))))
+    .catch(80),
+  sharedThemes: z
+    .array(z.string().trim())
+    .transform((arr) => arr.filter((s) => s.length >= 2).slice(0, 4))
+    .catch([]),
+  aiReason: z.string().trim().min(12).max(600),
 });
 
 export const GeminiResponseSchema = z.object({
-  recommendations: z.array(GeminiRecommendationItemSchema).min(1).max(14),
+  recommendations: z.array(z.unknown()),
 });
 
 type GeminiRecommendationItem = z.infer<typeof GeminiRecommendationItemSchema>;
@@ -175,7 +182,16 @@ async function queryGeminiStructured(params: {
         continue;
       }
 
-      return validated.data.recommendations;
+      const items: GeminiRecommendationItem[] = [];
+      for (const rawItem of validated.data.recommendations) {
+        const parsedItem = GeminiRecommendationItemSchema.safeParse(rawItem);
+        if (parsedItem.success) {
+          items.push(parsedItem.data);
+        }
+      }
+      if (items.length === 0) continue;
+
+      return items.slice(0, 14);
     } catch (error) {
       console.warn(`[CineBot] Gemini (${model}) çağrısı atlandı:`, error instanceof Error ? error.message : error);
     } finally {
@@ -209,6 +225,8 @@ export async function generateCineBotRecommendations(params: {
   const vibeIntent =
     effectiveMode === 'vibe' ? extractVibeIntent(cleanQuery, genreId) : null;
 
+  const seedIsAnimation = Boolean(seedMovie?.genreIds.includes(16));
+
   // 2) Gemini semantik adayları + TMDB tematik keşfi paralel çalıştır
   const [geminiItems, keywordDiscoverPool] = await Promise.all([
     queryGeminiStructured({
@@ -218,21 +236,23 @@ export async function generateCineBotRecommendations(params: {
       genreLabel,
       seedMovie,
     }),
-    effectiveMode === 'movie' && seedMovie && seedMovie.keywordIds.length > 0
+    effectiveMode === 'movie' && seedMovie
       ? discoverMoviesBySignals({
-          keywordIds: seedMovie.keywordIds.slice(0, 5),
+          keywordIds: getSpecificKeywordIds(seedMovie, 6),
           genreIds: genreId ? [genreId] : undefined,
-          minVoteCount: 150,
-          minVoteAverage: 6.0,
+          anyGenreIds: !genreId ? seedMovie.genreIds.slice(0, 2) : undefined,
+          withoutGenreIds: !seedIsAnimation && genreId !== 16 ? [16, 10751] : undefined,
+          minVoteCount: 350,
+          minVoteAverage: 6.4,
         })
       : effectiveMode === 'vibe' && vibeIntent
         ? discoverMoviesBySignals({
             keywordIds: vibeIntent.inferredKeywordIds,
-            genreIds: genreId
-              ? [genreId]
-              : vibeIntent.inferredGenreIds.slice(0, 2),
-            minVoteCount: 150,
-            minVoteAverage: 6.2,
+            genreIds: genreId ? [genreId] : undefined,
+            anyGenreIds: !genreId ? vibeIntent.inferredGenreIds.slice(0, 2) : undefined,
+            withoutGenreIds: !vibeIntent.wantsAnimation && genreId !== 16 ? [16, 10751] : undefined,
+            minVoteCount: 250,
+            minVoteAverage: 6.4,
           })
         : Promise.resolve([]),
   ]);
@@ -273,42 +293,51 @@ export async function generateCineBotRecommendations(params: {
     }
   }
 
-  // B) TMDB çok-kaynaklı adayları (recommendations + similar + keyword discover) sinyalleriyle ekle
+  // B) TMDB çok-kaynaklı adayları (keyword discover + recommendations + similar) dengeli sırayla ekle
   const tmdbIdsToEnrich: number[] = [];
   const queuedIds = new Set<number>(seedId ? [seedId] : []);
   for (const id of candidateMetaMap.keys()) queuedIds.add(id);
 
+  // Önce tüm sinyalleri kaydet
+  for (const raw of keywordDiscoverPool.slice(0, 12)) {
+    if (!raw.id || raw.id === seedId) continue;
+    mergeSignals(raw.id, { fromKeywordDiscover: true });
+  }
   if (seedMovie) {
     seedMovie.recommendedIds.slice(0, 12).forEach((id, rank) => {
       if (id === seedId) return;
       mergeSignals(id, { fromTmdbRecs: true, tmdbRecsRank: rank });
-      if (!queuedIds.has(id)) {
-        queuedIds.add(id);
-        tmdbIdsToEnrich.push(id);
-      }
     });
-
-    seedMovie.similarIds.slice(0, 8).forEach((id) => {
+    seedMovie.similarIds.slice(0, 10).forEach((id) => {
       if (id === seedId) return;
       mergeSignals(id, { fromTmdbSimilar: true });
-      if (!queuedIds.has(id) && tmdbIdsToEnrich.length < 16) {
-        queuedIds.add(id);
-        tmdbIdsToEnrich.push(id);
-      }
     });
   }
 
-  for (const raw of keywordDiscoverPool.slice(0, 10)) {
-    if (!raw.id || raw.id === seedId) continue;
-    mergeSignals(raw.id, { fromKeywordDiscover: true });
-    if (!queuedIds.has(raw.id) && tmdbIdsToEnrich.length < 18) {
+  // Öncelik sırası: 1) Tematik Keyword+Tür eşleşmeleri, 2) TMDB Recommendations, 3) TMDB Similar
+  for (const raw of keywordDiscoverPool.slice(0, 9)) {
+    if (raw.id && !queuedIds.has(raw.id)) {
       queuedIds.add(raw.id);
       tmdbIdsToEnrich.push(raw.id);
     }
   }
+  if (seedMovie) {
+    for (const id of seedMovie.recommendedIds.slice(0, 7)) {
+      if (id && !queuedIds.has(id)) {
+        queuedIds.add(id);
+        tmdbIdsToEnrich.push(id);
+      }
+    }
+    for (const id of seedMovie.similarIds.slice(0, 5)) {
+      if (id && !queuedIds.has(id)) {
+        queuedIds.add(id);
+        tmdbIdsToEnrich.push(id);
+      }
+    }
+  }
 
   // Gemini yeterli aday bulamadıysa veya zenginleştirme gerekiyorsa TMDB adaylarının detaylı metadata'sını çek
-  const enrichLimit = geminiValidatedCount >= 8 ? 6 : 14;
+  const enrichLimit = geminiValidatedCount >= 8 ? 6 : 16;
   if (tmdbIdsToEnrich.length > 0) {
     const extraMetas = await Promise.all(
       tmdbIdsToEnrich.slice(0, enrichLimit).map((id) => getRichMovieMetadata(id, false))

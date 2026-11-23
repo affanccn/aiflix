@@ -509,30 +509,74 @@ export async function findRichTmdbMovie(
   return null;
 }
 
+const GENERIC_NON_THEMATIC_KEYWORDS = new Set([
+  'mission',
+  'kidnapping',
+  'based on novel or book',
+  'based on comic',
+  'based on true story',
+  'aftercreditsstinger',
+  'duringcreditsstinger',
+  'woman director',
+  'sequel',
+  'remake',
+  'reboot',
+  '3d',
+  'imax',
+  'blockbuster',
+  'los angeles, california',
+  'new york city',
+  'paris, france',
+  'london, england',
+]);
+
+export function getSpecificKeywordIds(meta: RichMovieMetadata, limit = 6): number[] {
+  const specific: number[] = [];
+  for (let i = 0; i < meta.keywordIds.length; i++) {
+    const name = (meta.keywordNames[i] || '').toLowerCase().trim();
+    if (!GENERIC_NON_THEMATIC_KEYWORDS.has(name)) {
+      specific.push(meta.keywordIds[i]);
+    }
+    if (specific.length >= limit) break;
+  }
+  return specific.length > 0 ? specific : meta.keywordIds.slice(0, limit);
+}
+
 export async function discoverMoviesBySignals(params: {
   keywordIds?: number[];
   genreIds?: number[];
+  anyGenreIds?: number[];
+  withoutGenreIds?: number[];
+  sortBy?: 'popularity.desc' | 'vote_count.desc' | 'vote_average.desc';
   minVoteCount?: number;
   minVoteAverage?: number;
   page?: number;
 }): Promise<TmdbRawMovie[]> {
   try {
+    const withGenres =
+      params.genreIds && params.genreIds.length > 0
+        ? params.genreIds.slice(0, 3).join(',')
+        : params.anyGenreIds && params.anyGenreIds.length > 0
+          ? params.anyGenreIds.slice(0, 3).join('|')
+          : undefined;
+
     const data = await tmdbFetch<{ results?: TmdbRawMovie[] }>(
       '/discover/movie',
       {
         language: 'tr-TR',
-        sort_by: 'popularity.desc',
+        sort_by: params.sortBy ?? 'vote_count.desc',
         include_adult: 'false',
         with_keywords:
           params.keywordIds && params.keywordIds.length > 0
             ? params.keywordIds.slice(0, 6).join('|')
             : undefined,
-        with_genres:
-          params.genreIds && params.genreIds.length > 0
-            ? params.genreIds.slice(0, 3).join(',')
+        with_genres: withGenres,
+        without_genres:
+          params.withoutGenreIds && params.withoutGenreIds.length > 0
+            ? params.withoutGenreIds.join(',')
             : undefined,
-        'vote_count.gte': params.minVoteCount ?? 150,
-        'vote_average.gte': params.minVoteAverage ?? 6.2,
+        'vote_count.gte': params.minVoteCount ?? 250,
+        'vote_average.gte': params.minVoteAverage ?? 6.3,
         page: params.page ?? 1,
       },
       1800

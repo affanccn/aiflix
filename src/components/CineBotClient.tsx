@@ -417,7 +417,7 @@ export function CineBotClient() {
             <span>
               {loading
                 ? 'Konu, Tema, Yönetmen ve Atmosfer Analiz Ediliyor...'
-                : '6 Kişiselleştirilmiş Film Önerisi Getir'}
+                : 'Yapay Zeka ile Film Önerisi Getir'}
             </span>
           </button>
         </form>

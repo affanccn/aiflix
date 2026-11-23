@@ -478,16 +478,16 @@ export function computeMovieSimilarity(
   } else if (signals.fromTmdbRecs) {
     const rank = signals.tmdbRecsRank ?? 8;
     graphAndSemanticBoost = clamp(Math.round(78 - rank * 2.2), 52, 78);
+  } else if (signals.fromKeywordDiscover) {
+    graphAndSemanticBoost = clamp(58 + sharedKeywordNames.length * 8, 56, 82);
   } else if (signals.fromTmdbSimilar) {
     graphAndSemanticBoost = 52;
-  } else if (signals.fromKeywordDiscover) {
-    graphAndSemanticBoost = 48;
   }
 
   const storyAndTheme = signals.fromGemini
     ? clamp(Math.round(graphAndSemanticBoost * 0.62 + metadataThemeScore * 0.38 + (signals.fromTmdbRecs ? 8 : 0)), 0, 100)
-    : signals.fromTmdbRecs
-      ? clamp(Math.round(graphAndSemanticBoost * 0.5 + metadataThemeScore * 0.5 + (sharedKeywordNames.length > 0 ? 8 : 0)), 0, 100)
+    : signals.fromTmdbRecs || signals.fromKeywordDiscover
+      ? clamp(Math.round(graphAndSemanticBoost * 0.52 + metadataThemeScore * 0.48 + (sharedKeywordNames.length > 0 ? 8 : 0)), 0, 100)
       : clamp(Math.round(metadataThemeScore * 0.78 + graphAndSemanticBoost * 0.22), 0, 100);
 
   // B) Tür & Ton Skoru (ağırlık: %18 — tek başına filmi yukarı taşıyamaz)
