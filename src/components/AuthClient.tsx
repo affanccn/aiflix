@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
-  Film,
   LogIn,
   UserPlus,
   KeyRound,
@@ -139,7 +138,13 @@ export function AuthClient() {
         <div className="text-center mb-24">
           <div className="brand-logo flex-center mb-8 text-2xl">
             <span className="brand-logo-mark" aria-hidden="true">
-              <Film size={20} />
+              <Image
+                src="/img/logo-mark.png"
+                alt=""
+                width={38}
+                height={38}
+                className="brand-logo-mark-img"
+              />
             </span>
             <span>
               Ai<span className="brand-logo-accent">Flix</span> Pass

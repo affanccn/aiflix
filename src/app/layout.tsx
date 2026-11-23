@@ -57,9 +57,9 @@ export const metadata: Metadata = {
       'Ruh halinize ve sevdiğiniz filmlere göre kişiselleştirilmiş yapay zeka film önerileri ve aktif sinema topluluğu.',
     images: [
       {
-        url: '/img/hero-poster.webp',
-        width: 1280,
-        height: 720,
+        url: '/img/og-brand.png',
+        width: 1200,
+        height: 630,
         alt: 'AiFlix Yapay Zeka Film Platformu',
       },
     ],
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     title: 'AiFlix — Yapay Zeka Destekli Film Keşif Platformu',
     description:
       'Sevdiğiniz filmlere benzer başyapıtları CineBot AI ile keşfedin ve FilmSözlük topluluğuna katılın.',
-    images: ['/img/hero-poster.webp'],
+    images: ['/img/og-brand.png'],
   },
   robots: {
     index: true,

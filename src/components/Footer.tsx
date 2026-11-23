@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Film } from 'lucide-react';
+import Image from 'next/image';
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -12,7 +12,13 @@ export function Footer() {
           <div>
             <Link href="/" className="brand-logo mb-12">
               <span className="brand-logo-mark" aria-hidden="true">
-                <Film size={18} />
+                <Image
+                  src="/img/logo-mark.png"
+                  alt=""
+                  width={34}
+                  height={34}
+                  className="brand-logo-mark-img"
+                />
               </span>
               <span>
                 Ai<span className="brand-logo-accent">Flix</span>

@@ -327,13 +327,23 @@ textarea {
 .brand-logo-mark {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  background: var(--gradient-brand);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(255, 107, 8, 0.35);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.brand-logo-mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(255, 107, 8, 0.45));
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.brand-logo:hover .brand-logo-mark-img {
+  transform: scale(1.08) rotate(-2deg);
 }
 
 .brand-logo-accent {

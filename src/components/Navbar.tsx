@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Film,
   Home,
   Sparkles,
   MessageSquare,
@@ -144,7 +143,14 @@ export function Navbar() {
           <div className="navbar-left">
             <Link href="/" className="brand-logo" aria-label="AiFlix Anasayfa">
               <span className="brand-logo-mark" aria-hidden="true">
-                <Film size={18} />
+                <Image
+                  src="/img/logo-mark.png"
+                  alt=""
+                  width={34}
+                  height={34}
+                  className="brand-logo-mark-img"
+                  priority
+                />
               </span>
               <span>
                 Ai<span className="brand-logo-accent">Flix</span>
