@@ -1,6 +1,5 @@
 import sharp from 'sharp';
 import fs from 'fs';
-import path from 'path';
 
 const src = 'C:/Users/Asus/.gemini/antigravity/brain/535e274e-9c91-461d-8dc7-19b6ba704049/.user_uploaded/media_1795419242712_da894e19.png';
 
@@ -66,7 +65,7 @@ async function processLogo() {
   if (!fs.existsSync('public/img')) fs.mkdirSync('public/img', { recursive: true });
   if (!fs.existsSync('public/icons')) fs.mkdirSync('public/icons', { recursive: true });
 
-  // 1. Full logo (transparent)
+  // 1. Full logo (transparent) for site Navbar & Footer
   const fullW = boxRight - boxLeft;
   const fullH = boxBottom - boxTop;
   await sharp(out, { raw: { width: info.width, height: info.height, channels: 4 } })
@@ -75,7 +74,7 @@ async function processLogo() {
     .toFile('public/img/logo-full.png');
   console.log('Generated: public/img/logo-full.png');
 
-  // 2. Icon Mark (transparent square)
+  // 2. Icon Mark (transparent square) for Navbar & UI badges
   const markW = 390 - boxLeft;
   const markH = boxBottom - boxTop;
   const squareSize = Math.max(markW, markH) + 16;
@@ -95,67 +94,108 @@ async function processLogo() {
     .toFile('public/img/logo-mark.png');
   console.log('Generated: public/img/logo-mark.png');
 
-  // 3. icon-512.png (512x512)
-  await sharp('public/img/logo-mark.png')
-    .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  // ---------------------------------------------------------------------------
+  // 3. Mobile / PWA App Icons: SOLID DARK BACKGROUND & PERFECT SAFE-ZONE
+  // (Prevents Android / iOS from forcing an ugly white square around the icon!)
+  // ---------------------------------------------------------------------------
+  function createDarkCanvasSvg(width, height) {
+    return Buffer.from(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#141c2e" />
+          <stop offset="55%" stop-color="#080c16" />
+          <stop offset="100%" stop-color="#04060b" />
+        </radialGradient>
+        <radialGradient id="ambientGlow" cx="50%" cy="52%" r="48%">
+          <stop offset="0%" stop-color="#ff6b08" stop-opacity="0.28" />
+          <stop offset="50%" stop-color="#ff6b08" stop-opacity="0.08" />
+          <stop offset="100%" stop-color="#ff6b08" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#bg)" />
+      <circle cx="${width / 2}" cy="${height / 2}" r="${width * 0.42}" fill="url(#ambientGlow)" />
+    </svg>`);
+  }
+
+  // 512x512 solid dark app icon (with 360px centered icon mark)
+  const icon360 = await sharp('public/img/logo-mark.png')
+    .resize(360, 360, { fit: 'contain' })
+    .toBuffer();
+
+  const canvas512 = createDarkCanvasSvg(512, 512);
+  await sharp(canvas512)
+    .composite([{ input: icon360, top: 76, left: 76 }])
     .png()
     .toFile('public/icons/icon-512.png');
-  console.log('Generated: public/icons/icon-512.png');
+  console.log('Generated: public/icons/icon-512.png (solid dark)');
 
-  // 4. icon-192.png (192x192)
-  await sharp('public/img/logo-mark.png')
-    .resize(192, 192, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  // 192x192 solid dark app icon
+  const icon136 = await sharp('public/img/logo-mark.png')
+    .resize(136, 136, { fit: 'contain' })
+    .toBuffer();
+
+  const canvas192 = createDarkCanvasSvg(192, 192);
+  await sharp(canvas192)
+    .composite([{ input: icon136, top: 28, left: 28 }])
     .png()
     .toFile('public/icons/icon-192.png');
-  console.log('Generated: public/icons/icon-192.png');
+  console.log('Generated: public/icons/icon-192.png (solid dark)');
 
-  // 5. apple-touch-icon.png (180x180) - with sleek dark background
-  await sharp('public/img/logo-mark.png')
-    .resize(148, 148, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .extend({
-      top: 16,
-      bottom: 16,
-      left: 16,
-      right: 16,
-      background: { r: 8, g: 12, b: 22, alpha: 1 },
-    })
+  // Maskable 512x512 icon (safe zone: 65% size = 330px centered)
+  const icon330 = await sharp('public/img/logo-mark.png')
+    .resize(330, 330, { fit: 'contain' })
+    .toBuffer();
+
+  await sharp(canvas512)
+    .composite([{ input: icon330, top: 91, left: 91 }])
+    .png()
+    .toFile('public/icons/icon-maskable-512.png');
+  console.log('Generated: public/icons/icon-maskable-512.png (Android adaptive maskable)');
+
+  // Maskable 192x192 icon
+  const icon124 = await sharp('public/img/logo-mark.png')
+    .resize(124, 124, { fit: 'contain' })
+    .toBuffer();
+
+  await sharp(canvas192)
+    .composite([{ input: icon124, top: 34, left: 34 }])
+    .png()
+    .toFile('public/icons/icon-maskable-192.png');
+  console.log('Generated: public/icons/icon-maskable-192.png (Android adaptive maskable)');
+
+  // Apple touch icon (180x180 solid dark)
+  const icon128 = await sharp('public/img/logo-mark.png')
+    .resize(128, 128, { fit: 'contain' })
+    .toBuffer();
+
+  const canvas180 = createDarkCanvasSvg(180, 180);
+  await sharp(canvas180)
+    .composite([{ input: icon128, top: 26, left: 26 }])
     .png()
     .toFile('public/icons/apple-touch-icon.png');
-  console.log('Generated: public/icons/apple-touch-icon.png');
+  console.log('Generated: public/icons/apple-touch-icon.png (iOS home screen)');
 
-  // 6. favicon-32.png (32x32)
-  await sharp('public/img/logo-mark.png')
-    .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  // Favicon 32x32
+  await sharp('public/icons/icon-192.png')
+    .resize(32, 32, { fit: 'contain' })
     .png()
     .toFile('public/icons/favicon-32.png');
   console.log('Generated: public/icons/favicon-32.png');
 
-  // 7. public/favicon.ico
-  await sharp('public/icons/favicon-32.png').toFile('public/favicon.ico');
+  // Favicon.ico
+  await sharp('public/icons/favicon-32.png')
+    .toFile('public/favicon.ico');
   console.log('Generated: public/favicon.ico');
 
-  // 8. public/icons/icon.svg
-  const b64 = (await sharp('public/img/logo-mark.png').resize(128, 128).png().toBuffer()).toString('base64');
-  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <image href="data:image/png;base64,${b64}" x="0" y="0" width="128" height="128" />
+  // Scalable SVG icon
+  const b64 = (await sharp('public/icons/icon-192.png').png().toBuffer()).toString('base64');
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <image href="data:image/png;base64,${b64}" x="0" y="0" width="192" height="192" />
 </svg>\n`;
   fs.writeFileSync('public/icons/icon.svg', svgContent, 'utf8');
   console.log('Generated: public/icons/icon.svg');
 
-  // 9. OpenGraph social share card
-  await sharp(src)
-    .resize(1200, 630, { fit: 'cover' })
-    .png()
-    .toFile('public/img/og-brand.png');
-  console.log('Generated: public/img/og-brand.png');
-
-  // 10. Also copy the original wallpaper to public/img/hero-logo-banner.webp
-  await sharp(src)
-    .webp({ quality: 90 })
-    .toFile('public/img/hero-logo-banner.webp');
-  console.log('Generated: public/img/hero-logo-banner.webp');
-
-  console.log('All brand assets successfully built!');
+  console.log('All brand assets successfully built with solid dark backgrounds!');
 }
 
 processLogo().catch((err) => {
