@@ -20,6 +20,9 @@ import {
   Film,
   Cpu,
   Check,
+  Target,
+  VideoOff,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -34,6 +37,8 @@ import {
 } from '@/lib/firestore-service';
 import type { CineBotHistoryItem, CineBotRecommendation, CineBotResponse } from '@/types';
 
+const RECOMMENDATION_COUNT = 6;
+
 const INSPIRATION_TAGS = [
   { label: 'Ters Köşe Gerilim', query: 'Ters köşe yapan zihin bükücü gerilim filmleri', genre: 'thriller' },
   { label: 'Uzay Gizemi', query: 'Derin uzayda geçen yalnızlık ve gizem temalı', genre: 'sci-fi' },
@@ -42,6 +47,12 @@ const INSPIRATION_TAGS = [
   { label: 'Karanlık Polisiye', query: 'Karanlık dedektif ve seri katil kovalamacası', genre: 'crime' },
   { label: 'Keyifli Yolculuk', query: 'İçinizi ısıtacak keyifli yol hikayesi', genre: 'comedy' },
 ];
+
+function getSimilarityTier(score: number): 'high' | 'mid' | 'base' {
+  if (score >= 80) return 'high';
+  if (score >= 65) return 'mid';
+  return 'base';
+}
 
 export function CineBotClient() {
   const searchParams = useSearchParams();
@@ -53,7 +64,6 @@ export function CineBotClient() {
   );
   const [query, setQuery] = useState(searchParams.get('movie') || searchParams.get('q') || '');
   const [genre, setGenre] = useState(searchParams.get('genre') || 'all');
-  const [count, setCount] = useState(6);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +103,7 @@ export function CineBotClient() {
   }, [user]);
 
   const runSearch = useCallback(
-    async (opts: { q: string; m: 'movie' | 'vibe'; g: string; c: number }) => {
+    async (opts: { q: string; m: 'movie' | 'vibe'; g: string }) => {
       const cleanQ = opts.q.trim();
       if (cleanQ.length < 2) {
         showToast(
@@ -119,7 +129,7 @@ export function CineBotClient() {
             query: cleanQ,
             mode: opts.m,
             genre: opts.g,
-            count: opts.c,
+            count: RECOMMENDATION_COUNT,
           }),
         });
 
@@ -128,19 +138,34 @@ export function CineBotClient() {
           throw new Error(data.error || 'Öneriler alınamadı.');
         }
 
-        setResult(data);
+        // En yüksek benzerlikten en düşüğe sıralamayı garanti altına al
+        const sortedSuggestions = [...data.suggestions].sort(
+          (a, b) => (b.similarityScore ?? 0) - (a.similarityScore ?? 0)
+        );
+        const normalizedResult: CineBotResponse = {
+          ...data,
+          suggestions: sortedSuggestions,
+          count: sortedSuggestions.length,
+        };
+
+        setResult(normalizedResult);
         setTimeout(() => {
           resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
 
-        if (user && data.suggestions.length > 0) {
-          const compactSuggestions = data.suggestions.map((s) => ({
+        if (user && sortedSuggestions.length > 0) {
+          const compactSuggestions = sortedSuggestions.map((s) => ({
             id: s.id,
             title: s.title,
             posterPath: s.posterPath,
             year: s.year,
             voteAverage: s.voteAverage,
             aiReason: s.aiReason,
+            similarityScore: s.similarityScore,
+            genres: s.genres ?? [],
+            director: s.director ?? null,
+            trailerKey: s.trailerKey ?? null,
+            matchHighlights: s.matchHighlights ?? [],
           }));
           saveCineBotHistory(user.uid, {
             query: cleanQ,
@@ -174,9 +199,9 @@ export function CineBotClient() {
       setQuery(paramMovie);
       setMode(paramMode);
       setGenre(paramGenre);
-      runSearch({ q: paramMovie, m: paramMode, g: paramGenre, c: count });
+      runSearch({ q: paramMovie, m: paramMode, g: paramGenre });
     }
-  }, [searchParams, count, runSearch]);
+  }, [searchParams, runSearch]);
 
   const handleToggleList = async (
     movie: CineBotRecommendation,
@@ -226,7 +251,9 @@ export function CineBotClient() {
   const handleShareResults = async () => {
     if (!result) return;
     const shareUrl = `${window.location.origin}/cinebot?mode=${result.mode}&movie=${encodeURIComponent(result.query)}&genre=${encodeURIComponent(genre)}`;
-    const titles = result.suggestions.map((s) => `• ${s.title} (${s.year})`).join('\n');
+    const titles = result.suggestions
+      .map((s) => `• ${s.title} (${s.year || '-'}) — %${s.similarityScore} benzerlik`)
+      .join('\n');
     const shareText = `AiFlix CineBot "${result.query}" için şu filmleri önerdi:\n${titles}`;
 
     try {
@@ -249,21 +276,29 @@ export function CineBotClient() {
     setQuery(item.query);
     setMode(item.mode);
     setGenre(item.genre);
-    setResult({
-      query: item.query,
-      mode: item.mode,
-      engine: item.engine,
-      originalMovie: null,
-      count: item.suggestions.length,
-      suggestions: item.suggestions.map((s) => ({
+    const restoredSuggestions: CineBotRecommendation[] = item.suggestions
+      .map((s) => ({
         ...s,
         originalTitle: s.title,
         overview: '',
         backdropPath: null,
         releaseDate: s.year,
         voteCount: 0,
-        genres: [],
-      })),
+        genres: s.genres ?? [],
+        similarityScore: typeof s.similarityScore === 'number' ? s.similarityScore : 0,
+        director: s.director ?? null,
+        trailerKey: s.trailerKey ?? null,
+        matchHighlights: s.matchHighlights ?? [],
+      }))
+      .sort((a, b) => b.similarityScore - a.similarityScore);
+
+    setResult({
+      query: item.query,
+      mode: item.mode,
+      engine: item.engine,
+      originalMovie: null,
+      count: restoredSuggestions.length,
+      suggestions: restoredSuggestions,
     });
     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -273,14 +308,14 @@ export function CineBotClient() {
       <div className="page-intro">
         <span className="hero-eyebrow">
           <Sparkles size={14} aria-hidden="true" />
-          Yapılandırılmış Gemini AI + TMDB Doğrulamalı Öneri Motoru
+          Çok Boyutlu Benzerlik Analizi + TMDB Doğrulamalı Öneri Motoru
         </span>
         <h1 className="hero-title page-intro-title">
           CineBot <span className="hero-title-accent">AI</span> Film Asistanı
         </h1>
         <p className="hero-subtitle mb-0">
-          Sevdiğin bir filmi yaz ya da ruh halini anlat; CineBot gerçek TMDB kayıtlarıyla
-          doğrulanmış en iyi filmleri sebepleriyle listelesin.
+          Sevdiğin bir filmi yaz ya da ruh halini anlat; CineBot konu, tema, atmosfer, anlatım
+          tarzı ve kadro uyumuna göre seçilmiş en fazla 6 filmi benzerlik yüzdesiyle sıralasın.
         </p>
       </div>
 
@@ -311,7 +346,7 @@ export function CineBotClient() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            runSearch({ q: query, m: mode, g: genre, c: count });
+            runSearch({ q: query, m: mode, g: genre });
           }}
         >
           <div className="cinebot-controls-grid">
@@ -337,7 +372,7 @@ export function CineBotClient() {
 
             <div className="form-field mb-0">
               <label htmlFor="cinebot-genre" className="form-label">
-                Kategori (Tür)
+                Tür Filtresi (İsteğe Bağlı)
               </label>
               <select
                 id="cinebot-genre"
@@ -350,23 +385,6 @@ export function CineBotClient() {
                     {g.label}
                   </option>
                 ))}
-              </select>
-            </div>
-
-            <div className="form-field mb-0">
-              <label htmlFor="cinebot-count" className="form-label">
-                Öneri Sayısı
-              </label>
-              <select
-                id="cinebot-count"
-                className="form-select"
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-              >
-                <option value={3}>3 Film</option>
-                <option value={4}>4 Film</option>
-                <option value={6}>6 Film</option>
-                <option value={8}>8 Film</option>
               </select>
             </div>
           </div>
@@ -382,7 +400,7 @@ export function CineBotClient() {
                   setMode('vibe');
                   setQuery(tag.query);
                   setGenre(tag.genre);
-                  runSearch({ q: tag.query, m: 'vibe', g: tag.genre, c: count });
+                  runSearch({ q: tag.query, m: 'vibe', g: tag.genre });
                 }}
               >
                 {tag.label}
@@ -396,7 +414,11 @@ export function CineBotClient() {
             disabled={loading}
           >
             <Sparkles size={18} aria-hidden="true" />
-            <span>{loading ? 'Yapay Zeka Filmleri Analiz Ediyor...' : 'Yapay Zeka ile Öneri Getir'}</span>
+            <span>
+              {loading
+                ? 'Konu, Tema, Yönetmen ve Atmosfer Analiz Ediliyor...'
+                : '6 Kişiselleştirilmiş Film Önerisi Getir'}
+            </span>
           </button>
         </form>
       </div>
@@ -406,14 +428,15 @@ export function CineBotClient() {
           <div className="surface-card mb-32" aria-busy="true" aria-live="polite">
             <div className="text-center mb-24">
               <h2 className="m-0 mb-6 text-lg">
-                CineBot en uygun filmleri seçiyor ve TMDB ile doğruluyor...
+                CineBot konu, tema, kadro ve atmosfer benzerliğini hesaplıyor...
               </h2>
               <p className="m-0 text-muted text-sm">
-                Her öneri gerçek afiş, puan, tür ve fragman bilgileriyle zenginleştiriliyor.
+                Aynı yönetmen/seri tekrarı filtreleniyor; her film benzerlik yüzdesi, IMDb/TMDB
+                puanı ve fragman bilgileriyle hazırlanıyor.
               </p>
             </div>
             <div className="cinebot-results-grid">
-              {Array.from({ length: Math.min(count, 4) }).map((_, i) => (
+              {Array.from({ length: RECOMMENDATION_COUNT }).map((_, i) => (
                 <div key={i} className="cinebot-rec-card">
                   <div className="skeleton sk-poster-ratio" />
                   <div className="flex-col gap-10">
@@ -435,7 +458,7 @@ export function CineBotClient() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => runSearch({ q: query, m: mode, g: genre, c: count })}
+              onClick={() => runSearch({ q: query, m: mode, g: genre })}
             >
               <RotateCcw size={15} /> Tekrar Dene
             </button>
@@ -448,17 +471,21 @@ export function CineBotClient() {
               <div>
                 <h2 id="cinebot-results-heading" className="section-title">
                   {result.originalMovie
-                    ? `"${result.originalMovie.title}" İçin Öneriler`
+                    ? `"${result.originalMovie.title}" İçin En Benzer Filmler`
                     : `"${result.query}" İçin Seçilen Filmler`}
                 </h2>
                 <p className="section-subtitle">
-                  {result.count} doğrulanmış film önerisi bulundu
+                  {result.count} yüksek benzerlikli film bulundu — en yüksek benzerlikten en düşüğe
+                  sıralandı
+                  {result.count < RECOMMENDATION_COUNT
+                    ? ' (alakasız filmler listeye dahil edilmedi)'
+                    : ''}
                 </p>
               </div>
               <div className="section-actions">
                 <span className="badge badge-blue">
                   <Cpu size={14} aria-hidden="true" />
-                  {result.engine === 'gemini' ? 'Gemini AI Motoru' : 'TMDB Akıllı Algoritma'}
+                  {result.engine === 'gemini' ? 'Gemini AI + Çoklu Sinyal' : 'TMDB Çoklu Sinyal'}
                 </span>
                 <button
                   type="button"
@@ -471,10 +498,12 @@ export function CineBotClient() {
             </div>
 
             <div className="cinebot-results-grid">
-              {result.suggestions.map((movie) => {
+              {result.suggestions.map((movie, index) => {
                 const poster = getTmdbImageUrl(movie.posterPath, 'w342');
                 const isFav = favoriteIds.has(movie.id);
                 const isWatch = watchlistIds.has(movie.id);
+                const score = typeof movie.similarityScore === 'number' ? movie.similarityScore : 0;
+                const tier = getSimilarityTier(score);
 
                 return (
                   <article key={movie.id} className="cinebot-rec-card">
@@ -497,32 +526,82 @@ export function CineBotClient() {
                             <Film size={28} />
                           </div>
                         )}
-                        {movie.voteAverage > 0 && (
-                          <span className="movie-rating-badge">
-                            <Star size={12} fill="currentColor" /> {movie.voteAverage.toFixed(1)}
-                          </span>
-                        )}
+                        <span className="rec-rank-badge" aria-label={`Öneri sırası ${index + 1}`}>
+                          #{index + 1}
+                        </span>
                       </div>
                     </Link>
 
                     <div className="flex-col min-w-0">
                       <div className="flex-between gap-8">
                         <Link href={`/movie/${movie.id}`}>
-                          <h3 className="m-0 mb-2 text-lg font-bold">
-                            {movie.title}
-                          </h3>
+                          <h3 className="m-0 mb-2 text-lg font-bold">{movie.title}</h3>
                         </Link>
-                        {movie.year && <span className="badge">{movie.year}</span>}
+                        {(movie.year || movie.runtime) && (
+                          <span className="badge">
+                            {movie.year}
+                            {movie.year && movie.runtime ? ' • ' : ''}
+                            {movie.runtime ? `${movie.runtime} dk` : ''}
+                          </span>
+                        )}
                       </div>
 
                       {movie.originalTitle && movie.originalTitle !== movie.title && (
-                        <div className="text-xs text-muted mb-6">
-                          {movie.originalTitle}
+                        <div className="text-xs text-muted mb-4">{movie.originalTitle}</div>
+                      )}
+
+                      {/* Benzerlik Skoru ve IMDb/TMDB Puanı kesinlikle ayrı gösterilir */}
+                      <div className="rec-metrics-row">
+                        {score > 0 && (
+                          <div className="rec-similarity-box" data-tier={tier}>
+                            <div className="rec-similarity-header">
+                              <span className="flex-row gap-6">
+                                <Target size={13} aria-hidden="true" />
+                                Benzerlik
+                              </span>
+                              <span className="rec-similarity-value">%{score}</span>
+                            </div>
+                            <progress
+                              className="similarity-progress"
+                              value={score}
+                              max={100}
+                              aria-label={`Benzerlik oranı yüzde ${score}`}
+                            />
+                          </div>
+                        )}
+
+                        <div className="rec-imdb-box" aria-label="IMDb ve TMDB izleyici puanı">
+                          <span className="rec-imdb-label">IMDb / Puan</span>
+                          <span className="rec-imdb-value">
+                            <Star size={14} fill="currentColor" aria-hidden="true" />
+                            {movie.voteAverage > 0 ? `${movie.voteAverage.toFixed(1)} / 10` : '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Doğrulanmış Yönetmen & Ortak Sinyal Etiketleri */}
+                      {(movie.director || (movie.matchHighlights && movie.matchHighlights.length > 0)) && (
+                        <div className="rec-meta-signals">
+                          {movie.director && (
+                            <span className="rec-signal-chip">
+                              <UserCheck size={12} aria-hidden="true" />
+                              {movie.director}
+                            </span>
+                          )}
+                          {(movie.matchHighlights || [])
+                            .filter((h) => !movie.director || !h.includes(movie.director))
+                            .slice(0, 2)
+                            .map((highlight) => (
+                              <span key={highlight} className="rec-signal-chip">
+                                {highlight}
+                              </span>
+                            ))}
                         </div>
                       )}
 
+                      {/* Film Türleri */}
                       {movie.genres && movie.genres.length > 0 && (
-                        <div className="flex-row flex-wrap gap-6 mb-6">
+                        <div className="flex-row flex-wrap gap-6 mb-4">
                           {movie.genres.slice(0, 3).map((g) => (
                             <span key={g} className="badge badge-orange">
                               {g}
@@ -531,6 +610,7 @@ export function CineBotClient() {
                         </div>
                       )}
 
+                      {/* Filme Özgü Öneri Gerekçesi */}
                       <div className="ai-reason-box">
                         <div className="ai-reason-label">
                           <Lightbulb size={13} aria-hidden="true" /> Neden Önerildi?
@@ -545,7 +625,7 @@ export function CineBotClient() {
                       )}
 
                       <div className="mt-auto flex-row flex-wrap gap-8 pt-6">
-                        {movie.trailerKey && (
+                        {movie.trailerKey ? (
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
@@ -553,8 +633,12 @@ export function CineBotClient() {
                               setActiveTrailer({ key: movie.trailerKey!, title: movie.title })
                             }
                           >
-                            <Play size={14} fill="currentColor" /> Fragman
+                            <Play size={14} fill="currentColor" aria-hidden="true" /> Fragmanı İzle
                           </button>
+                        ) : (
+                          <span className="rec-trailer-unavailable">
+                            <VideoOff size={13} aria-hidden="true" /> Fragman yok
+                          </span>
                         )}
                         <button
                           type="button"
@@ -608,9 +692,7 @@ export function CineBotClient() {
               >
                 <Sparkles size={13} color="#2196f3" aria-hidden="true" />
                 <span>{item.query}</span>
-                <span className="text-muted text-xs">
-                  ({item.suggestions.length} film)
-                </span>
+                <span className="text-muted text-xs">({item.suggestions.length} film)</span>
               </button>
             ))}
           </div>

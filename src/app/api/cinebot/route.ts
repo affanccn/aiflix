@@ -14,7 +14,7 @@ const CineBotRequestSchema = z.object({
     .string()
     .default('all')
     .refine((g) => g in GENRE_SLUG_TO_ID, 'Geçersiz film türü.'),
-  count: z.coerce.number().int().min(1).max(8).default(6),
+  count: z.coerce.number().int().min(1).max(6).default(6),
 });
 
 export async function POST(request: Request) {

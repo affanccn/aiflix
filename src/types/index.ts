@@ -34,8 +34,21 @@ export interface MovieDetail extends MovieSummary {
   genres: string[];
 }
 
+export interface SimilarityBreakdown {
+  storyAndTheme: number;
+  genreAndTone: number;
+  creativeDna: number;
+  atmosphereAndEra: number;
+}
+
 export interface CineBotRecommendation extends MovieSummary {
   aiReason: string;
+  similarityScore: number;
+  similarityBreakdown?: SimilarityBreakdown;
+  matchHighlights?: string[];
+  director?: string | null;
+  topCast?: string[];
+  imdbId?: string | null;
 }
 
 export interface CineBotResponse {
@@ -60,6 +73,11 @@ export interface CineBotHistoryItem {
     year: string;
     voteAverage: number;
     aiReason: string;
+    similarityScore?: number;
+    genres?: string[];
+    director?: string | null;
+    trailerKey?: string | null;
+    matchHighlights?: string[];
   }>;
   createdAt: string;
 }
