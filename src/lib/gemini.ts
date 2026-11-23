@@ -51,7 +51,10 @@ async function queryGeminiStructured(params: {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+  const configuredModel = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+  const candidateModels = Array.from(
+    new Set([configuredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
+  );
   // TMDB eşleşmeyen filmler eleneceği için +2 fazla aday iste
   const requestCount = Math.min(params.count + 2, 10);
 
@@ -72,51 +75,64 @@ async function queryGeminiStructured(params: {
     'Her film için aiReason alanını spoiler vermeden, doğal ve akıcı Türkçe ile 1-2 cümle yaz.',
   ].join('\n');
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  for (const model of candidateModels) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.65,
-          maxOutputTokens: 1600,
-          responseMimeType: 'application/json',
-          responseSchema: GEMINI_JSON_SCHEMA,
-        },
-      }),
-    });
+    try {
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.65,
+        maxOutputTokens: 2400,
+        responseMimeType: 'application/json',
+        responseSchema: GEMINI_JSON_SCHEMA,
+      };
+      if (model.includes('2.5')) {
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
 
-    if (!response.ok) {
-      console.warn(`[CineBot] Gemini HTTP ${response.status}`);
-      return null;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`[CineBot] Gemini (${model}) HTTP ${response.status}`);
+        continue;
+      }
+
+      const payload = (await response.json()) as {
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+        }>;
+      };
+      const parts = payload.candidates?.[0]?.content?.parts ?? [];
+      const rawText =
+        parts.find((p) => !p.thought && typeof p.text === 'string' && p.text.trim().length > 0)?.text ??
+        parts[0]?.text;
+      if (!rawText) continue;
+
+      const json = JSON.parse(rawText);
+      const validated = GeminiResponseSchema.safeParse(json);
+      if (!validated.success) {
+        console.warn(`[CineBot] Gemini (${model}) çıktısı Zod doğrulamasından geçemedi:`, validated.error.issues);
+        continue;
+      }
+
+      return validated.data.recommendations;
+    } catch (error) {
+      console.warn(`[CineBot] Gemini (${model}) çağrısı atlandı:`, error instanceof Error ? error.message : error);
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const payload = (await response.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const rawText = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) return null;
-
-    const json = JSON.parse(rawText);
-    const validated = GeminiResponseSchema.safeParse(json);
-    if (!validated.success) {
-      console.warn('[CineBot] Gemini çıktısı Zod doğrulamasından geçemedi:', validated.error.issues);
-      return null;
-    }
-
-    return validated.data.recommendations;
-  } catch (error) {
-    console.warn('[CineBot] Gemini çağrısı atlandı:', error instanceof Error ? error.message : error);
-    return null;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return null;
 }
 
 export async function generateCineBotRecommendations(params: {
