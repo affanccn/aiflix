@@ -22,6 +22,7 @@ import { HeroMedia } from '@/components/HeroMedia';
 import { MovieCard, MovieCardSkeleton } from '@/components/MovieCard';
 import { MovieCarousel } from '@/components/MovieCarousel';
 import { useAuth } from '@/context/AuthContext';
+import { getTurkishFirestoreError } from '@/lib/firebase/client';
 import { fetchLatestForumEntries } from '@/lib/firestore-service';
 import type { ForumEntry, MovieSummary } from '@/types';
 
@@ -48,7 +49,7 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
 
   const [entries, setEntries] = useState<ForumEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(true);
-  const [entriesError, setEntriesError] = useState(false);
+  const [entriesError, setEntriesError] = useState<string | null>(null);
 
   const loadTrending = useCallback(async () => {
     setTrendingLoading(true);
@@ -77,12 +78,21 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
 
   const loadEntries = useCallback(async () => {
     setEntriesLoading(true);
-    setEntriesError(false);
+    setEntriesError(null);
     try {
       const list = await fetchLatestForumEntries(4);
       setEntries(list);
-    } catch {
-      setEntriesError(true);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code) {
+        setEntriesError(getTurkishFirestoreError(code));
+      } else if (err instanceof Error && err.message) {
+        setEntriesError(err.message);
+      } else {
+        setEntriesError(
+          'FilmSözlük başlıkları şu an yüklenemedi. Bağlantınızı kontrol edip yeniden deneyin.'
+        );
+      }
     } finally {
       setEntriesLoading(false);
     }
@@ -265,9 +275,7 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
               </div>
             ) : entriesError ? (
               <div className="state-box">
-                <p className="state-box-text">
-                  FilmSözlük başlıkları şu an yüklenemedi. Bağlantınızı kontrol edip yeniden deneyin.
-                </p>
+                <p className="state-box-text">{entriesError}</p>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={loadEntries}>
                   <RotateCcw size={14} /> Tekrar Dene
                 </button>

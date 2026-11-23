@@ -11,6 +11,9 @@ export async function GET() {
       services: {
         tmdb: isTmdbConfigured(),
         gemini: isGeminiConfigured(),
+        firebaseClient: Boolean(
+          process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        ),
         firebaseAdmin: isAdminConfigured(),
       },
       timestamp: new Date().toISOString(),

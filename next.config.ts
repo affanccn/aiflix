@@ -2,12 +2,12 @@ import type { NextConfig } from 'next';
 
 const cspDirectives = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://image.tmdb.org https://lh3.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://i.ytimg.com",
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://firebaseappcheck.googleapis.com https://www.google.com https://www.recaptcha.net",
-  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com https://www.google.com https://www.recaptcha.net",
+  "script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://vercel.live",
+  "style-src 'self' 'unsafe-inline' https://vercel.live",
+  "img-src 'self' data: blob: https://image.tmdb.org https://lh3.googleusercontent.com https://firebasestorage.googleapis.com https://*.firebasestorage.app https://i.ytimg.com https://vercel.live",
+  "font-src 'self' data: https://vercel.live",
+  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://firebaseappcheck.googleapis.com https://www.google.com https://www.recaptcha.net https://vercel.live wss://ws-us3.pusher.com",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com https://www.google.com https://www.recaptcha.net https://vercel.live",
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

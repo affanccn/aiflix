@@ -119,7 +119,13 @@ export function FilmSozlukClient() {
         setHasMore(res.hasMore);
       } catch (err: unknown) {
         const code = (err as { code?: string })?.code;
-        setLoadError(getTurkishFirestoreError(code));
+        if (code) {
+          setLoadError(getTurkishFirestoreError(code));
+        } else if (err instanceof Error && err.message) {
+          setLoadError(err.message);
+        } else {
+          setLoadError('Tartışmalar yüklenemedi. Lütfen tekrar deneyin.');
+        }
       } finally {
         setLoading(false);
         setLoadingMore(false);
