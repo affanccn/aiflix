@@ -18,6 +18,7 @@ import {
   Lightbulb,
   RotateCcw,
   Film,
+  Tv,
   Cpu,
   Check,
   Target,
@@ -35,12 +36,17 @@ import {
   saveCineBotHistory,
   toggleSavedMovie,
 } from '@/lib/firestore-service';
-import type { CineBotHistoryItem, CineBotRecommendation, CineBotResponse } from '@/types';
+import type {
+  CineBotHistoryItem,
+  CineBotRecommendation,
+  CineBotResponse,
+  MediaFilter,
+} from '@/types';
 
 const RECOMMENDATION_COUNT = 6;
 
 const INSPIRATION_TAGS = [
-  { label: 'Ters Köşe Gerilim', query: 'Ters köşe yapan zihin bükücü gerilim filmleri', genre: 'thriller' },
+  { label: 'Ters Köşe Gerilim', query: 'Ters köşe yapan zihin bükücü gerilim film ve dizileri', genre: 'thriller' },
   { label: 'Uzay Gizemi', query: 'Derin uzayda geçen yalnızlık ve gizem temalı', genre: 'sci-fi' },
   { label: 'Sıcak Nostalji', query: 'Yağmurlu bir pazar günü izlenecek sıcacık nostaljik', genre: 'drama' },
   { label: 'Cyberpunk & Gelecek', query: 'Cyberpunk atmosferli distopik aksiyon', genre: 'action' },
@@ -59,9 +65,14 @@ export function CineBotClient() {
   const { user, getIdToken } = useAuth();
   const { showToast } = useToast();
 
+  const initialMediaParam = searchParams.get('mediaType');
+  const initialMedia: MediaFilter =
+    initialMediaParam === 'movie' || initialMediaParam === 'tv' ? initialMediaParam : 'all';
+
   const [mode, setMode] = useState<'movie' | 'vibe'>(
     searchParams.get('mode') === 'vibe' ? 'vibe' : 'movie'
   );
+  const [mediaType, setMediaType] = useState<MediaFilter>(initialMedia);
   const [query, setQuery] = useState(searchParams.get('movie') || searchParams.get('q') || '');
   const [genre, setGenre] = useState(searchParams.get('genre') || 'all');
 
@@ -103,12 +114,12 @@ export function CineBotClient() {
   }, [user]);
 
   const runSearch = useCallback(
-    async (opts: { q: string; m: 'movie' | 'vibe'; g: string }) => {
+    async (opts: { q: string; m: 'movie' | 'vibe'; mt: MediaFilter; g: string }) => {
       const cleanQ = opts.q.trim();
       if (cleanQ.length < 2) {
         showToast(
           opts.m === 'movie'
-            ? 'Lütfen en az 2 karakterlik bir film adı yazın.'
+            ? 'Lütfen en az 2 karakterlik bir film veya dizi adı yazın.'
             : 'Lütfen istediğiniz temayı veya ruh halinizi biraz daha açıklayın.',
           'info'
         );
@@ -128,6 +139,7 @@ export function CineBotClient() {
           body: JSON.stringify({
             query: cleanQ,
             mode: opts.m,
+            mediaType: opts.mt,
             genre: opts.g,
             count: RECOMMENDATION_COUNT,
           }),
@@ -138,7 +150,6 @@ export function CineBotClient() {
           throw new Error(data.error || 'Öneriler alınamadı.');
         }
 
-        // En yüksek benzerlikten en düşüğe sıralamayı garanti altına al
         const sortedSuggestions = [...data.suggestions].sort(
           (a, b) => (b.similarityScore ?? 0) - (a.similarityScore ?? 0)
         );
@@ -156,6 +167,7 @@ export function CineBotClient() {
         if (user && sortedSuggestions.length > 0) {
           const compactSuggestions = sortedSuggestions.map((s) => ({
             id: s.id,
+            mediaType: s.mediaType ?? 'movie',
             title: s.title,
             posterPath: s.posterPath,
             year: s.year,
@@ -166,10 +178,12 @@ export function CineBotClient() {
             director: s.director ?? null,
             trailerKey: s.trailerKey ?? null,
             matchHighlights: s.matchHighlights ?? [],
+            numberOfSeasons: s.numberOfSeasons ?? null,
           }));
           saveCineBotHistory(user.uid, {
             query: cleanQ,
             mode: opts.m,
+            mediaType: opts.mt,
             genre: opts.g,
             engine: data.engine,
             suggestions: compactSuggestions,
@@ -193,13 +207,17 @@ export function CineBotClient() {
     const paramMovie = searchParams.get('movie') || searchParams.get('q');
     const paramMode = searchParams.get('mode') === 'vibe' ? 'vibe' : 'movie';
     const paramGenre = searchParams.get('genre') || 'all';
+    const rawMedia = searchParams.get('mediaType');
+    const paramMedia: MediaFilter =
+      rawMedia === 'movie' || rawMedia === 'tv' ? rawMedia : 'all';
 
     if (paramMovie && !autoRanRef.current) {
       autoRanRef.current = true;
       setQuery(paramMovie);
       setMode(paramMode);
+      setMediaType(paramMedia);
       setGenre(paramGenre);
-      runSearch({ q: paramMovie, m: paramMode, g: paramGenre });
+      runSearch({ q: paramMovie, m: paramMode, mt: paramMedia, g: paramGenre });
     }
   }, [searchParams, runSearch]);
 
@@ -214,6 +232,7 @@ export function CineBotClient() {
     try {
       const added = await toggleSavedMovie(user.uid, listType, {
         id: movie.id,
+        mediaType: movie.mediaType === 'tv' ? 'tv' : 'movie',
         title: movie.title,
         posterPath: movie.posterPath,
         voteAverage: movie.voteAverage,
@@ -250,11 +269,14 @@ export function CineBotClient() {
 
   const handleShareResults = async () => {
     if (!result) return;
-    const shareUrl = `${window.location.origin}/cinebot?mode=${result.mode}&movie=${encodeURIComponent(result.query)}&genre=${encodeURIComponent(genre)}`;
+    const shareUrl = `${window.location.origin}/cinebot?mode=${result.mode}&movie=${encodeURIComponent(result.query)}&genre=${encodeURIComponent(genre)}&mediaType=${mediaType}`;
     const titles = result.suggestions
-      .map((s) => `• ${s.title} (${s.year || '-'}) — %${s.similarityScore} benzerlik`)
+      .map(
+        (s) =>
+          `• ${s.title} (${s.mediaType === 'tv' ? 'Dizi' : 'Film'}, ${s.year || '-'}) — %${s.similarityScore} benzerlik`
+      )
       .join('\n');
-    const shareText = `AiFlix CineBot "${result.query}" için şu filmleri önerdi:\n${titles}`;
+    const shareText = `AiFlix CineBot "${result.query}" için şu yapımları önerdi:\n${titles}`;
 
     try {
       if (navigator.share) {
@@ -275,10 +297,12 @@ export function CineBotClient() {
   const restoreFromHistory = (item: CineBotHistoryItem) => {
     setQuery(item.query);
     setMode(item.mode);
+    setMediaType(item.mediaType || 'all');
     setGenre(item.genre);
     const restoredSuggestions: CineBotRecommendation[] = item.suggestions
       .map((s) => ({
         ...s,
+        mediaType: s.mediaType ?? 'movie',
         originalTitle: s.title,
         overview: '',
         backdropPath: null,
@@ -289,12 +313,14 @@ export function CineBotClient() {
         director: s.director ?? null,
         trailerKey: s.trailerKey ?? null,
         matchHighlights: s.matchHighlights ?? [],
+        numberOfSeasons: s.numberOfSeasons ?? null,
       }))
       .sort((a, b) => b.similarityScore - a.similarityScore);
 
     setResult({
       query: item.query,
       mode: item.mode,
+      mediaType: item.mediaType || 'all',
       engine: item.engine,
       originalMovie: null,
       count: restoredSuggestions.length,
@@ -308,14 +334,14 @@ export function CineBotClient() {
       <div className="page-intro">
         <span className="hero-eyebrow">
           <Sparkles size={14} aria-hidden="true" />
-          Çok Boyutlu Benzerlik Analizi + TMDB Doğrulamalı Öneri Motoru
+          Çok Boyutlu Benzerlik Analizi + TMDB Doğrulamalı Film &amp; Dizi Motoru
         </span>
         <h1 className="hero-title page-intro-title">
-          CineBot <span className="hero-title-accent">AI</span> Film Asistanı
+          CineBot <span className="hero-title-accent">AI</span> Film &amp; Dizi Asistanı
         </h1>
         <p className="hero-subtitle mb-0">
-          Sevdiğin bir filmi yaz ya da ruh halini anlat; CineBot konu, tema, atmosfer, anlatım
-          tarzı ve kadro uyumuna göre seçilmiş en fazla 6 filmi benzerlik yüzdesiyle sıralasın.
+          Sevdiğin bir film veya diziyi yaz ya da ruh halini anlat; CineBot aynı serinin devam
+          filmlerini eleyerek konu, tema, atmosfer ve kadro uyumuna göre en benzer yapımları sıralasın.
         </p>
       </div>
 
@@ -329,7 +355,7 @@ export function CineBotClient() {
             onClick={() => setMode('movie')}
           >
             <Clapperboard size={17} aria-hidden="true" />
-            <span>Sevdiğim Bir Filme Benzer</span>
+            <span>Sevdiğim Film / Diziye Benzer</span>
           </button>
           <button
             type="button"
@@ -346,13 +372,13 @@ export function CineBotClient() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            runSearch({ q: query, m: mode, g: genre });
+            runSearch({ q: query, m: mode, mt: mediaType, g: genre });
           }}
         >
           <div className="cinebot-controls-grid">
             <div className="form-field mb-0">
               <label htmlFor="cinebot-query" className="form-label">
-                {mode === 'movie' ? 'Film Adı' : 'Ruh Haliniz veya İstediğiniz Konu'}
+                {mode === 'movie' ? 'Film veya Dizi Adı' : 'Ruh Haliniz veya İstediğiniz Konu'}
               </label>
               <input
                 id="cinebot-query"
@@ -361,8 +387,8 @@ export function CineBotClient() {
                 maxLength={240}
                 placeholder={
                   mode === 'movie'
-                    ? 'Örn: Interstellar, Inception, Fight Club, Parasite...'
-                    : 'Örn: Yağmurlu bir akşamda izlenecek ters köşe yapan gizemli bir film...'
+                    ? 'Örn: Interstellar, Breaking Bad, Dark, Maze Runner...'
+                    : 'Örn: Yağmurlu bir akşamda izlenecek ters köşe yapan gizemli bir yapım...'
                 }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -371,8 +397,24 @@ export function CineBotClient() {
             </div>
 
             <div className="form-field mb-0">
+              <label htmlFor="cinebot-media-type" className="form-label">
+                İçerik Türü
+              </label>
+              <select
+                id="cinebot-media-type"
+                className="form-select"
+                value={mediaType}
+                onChange={(e) => setMediaType(e.target.value as MediaFilter)}
+              >
+                <option value="all">Film &amp; Dizi (Tümü)</option>
+                <option value="movie">Sadece Film</option>
+                <option value="tv">Sadece Dizi</option>
+              </select>
+            </div>
+
+            <div className="form-field mb-0">
               <label htmlFor="cinebot-genre" className="form-label">
-                Tür Filtresi (İsteğe Bağlı)
+                Kategori (İsteğe Bağlı)
               </label>
               <select
                 id="cinebot-genre"
@@ -400,7 +442,7 @@ export function CineBotClient() {
                   setMode('vibe');
                   setQuery(tag.query);
                   setGenre(tag.genre);
-                  runSearch({ q: tag.query, m: 'vibe', g: tag.genre });
+                  runSearch({ q: tag.query, m: 'vibe', mt: mediaType, g: tag.genre });
                 }}
               >
                 {tag.label}
@@ -417,7 +459,7 @@ export function CineBotClient() {
             <span>
               {loading
                 ? 'Konu, Tema, Yönetmen ve Atmosfer Analiz Ediliyor...'
-                : 'Yapay Zeka ile Film Önerisi Getir'}
+                : 'Yapay Zeka ile Film & Dizi Önerisi Getir'}
             </span>
           </button>
         </form>
@@ -431,8 +473,8 @@ export function CineBotClient() {
                 CineBot konu, tema, kadro ve atmosfer benzerliğini hesaplıyor...
               </h2>
               <p className="m-0 text-muted text-sm">
-                Aynı yönetmen/seri tekrarı filtreleniyor; her film benzerlik yüzdesi, IMDb/TMDB
-                puanı ve fragman bilgileriyle hazırlanıyor.
+                Aynı seri ve yönetmen tekrarları filtreleniyor; her yapım benzerlik yüzdesi,
+                IMDb/TMDB puanı ve fragman bilgileriyle hazırlanıyor.
               </p>
             </div>
             <div className="cinebot-results-grid">
@@ -458,7 +500,7 @@ export function CineBotClient() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => runSearch({ q: query, m: mode, g: genre })}
+              onClick={() => runSearch({ q: query, m: mode, mt: mediaType, g: genre })}
             >
               <RotateCcw size={15} /> Tekrar Dene
             </button>
@@ -471,14 +513,14 @@ export function CineBotClient() {
               <div>
                 <h2 id="cinebot-results-heading" className="section-title">
                   {result.originalMovie
-                    ? `"${result.originalMovie.title}" İçin En Benzer Filmler`
-                    : `"${result.query}" İçin Seçilen Filmler`}
+                    ? `"${result.originalMovie.title}" İçin En Benzer Yapımlar`
+                    : `"${result.query}" İçin Seçilen Yapımlar`}
                 </h2>
                 <p className="section-subtitle">
-                  {result.count} yüksek benzerlikli film bulundu — en yüksek benzerlikten en düşüğe
+                  {result.count} yüksek benzerlikli yapım bulundu — en yüksek benzerlikten en düşüğe
                   sıralandı
                   {result.count < RECOMMENDATION_COUNT
-                    ? ' (alakasız filmler listeye dahil edilmedi)'
+                    ? ' (alakasız yapımlar listeye dahil edilmedi)'
                     : ''}
                 </p>
               </div>
@@ -499,6 +541,8 @@ export function CineBotClient() {
 
             <div className="cinebot-results-grid">
               {result.suggestions.map((movie, index) => {
+                const isTv = movie.mediaType === 'tv';
+                const detailHref = isTv ? `/tv/${movie.id}` : `/movie/${movie.id}`;
                 const poster = getTmdbImageUrl(movie.posterPath, 'w342');
                 const isFav = favoriteIds.has(movie.id);
                 const isWatch = watchlistIds.has(movie.id);
@@ -506,10 +550,10 @@ export function CineBotClient() {
                 const tier = getSimilarityTier(score);
 
                 return (
-                  <article key={movie.id} className="cinebot-rec-card">
+                  <article key={`${movie.mediaType || 'movie'}-${movie.id}`} className="cinebot-rec-card">
                     <Link
-                      href={`/movie/${movie.id}`}
-                      aria-label={`${movie.title} detay sayfası`}
+                      href={detailHref}
+                      aria-label={`${movie.title} ${isTv ? 'dizi' : 'film'} detay sayfası`}
                       className="block"
                     >
                       <div className="movie-poster-wrap rounded-10">
@@ -523,25 +567,40 @@ export function CineBotClient() {
                           />
                         ) : (
                           <div className="movie-poster-placeholder">
-                            <Film size={28} />
+                            {isTv ? <Tv size={28} /> : <Film size={28} />}
                           </div>
                         )}
                         <span className="rec-rank-badge" aria-label={`Öneri sırası ${index + 1}`}>
                           #{index + 1}
+                        </span>
+                        <span className="movie-type-badge" aria-label={isTv ? 'Dizi' : 'Film'}>
+                          {isTv ? (
+                            <>
+                              <Tv size={11} aria-hidden="true" /> Dizi
+                            </>
+                          ) : (
+                            <>
+                              <Film size={11} aria-hidden="true" /> Film
+                            </>
+                          )}
                         </span>
                       </div>
                     </Link>
 
                     <div className="flex-col min-w-0">
                       <div className="flex-between gap-8">
-                        <Link href={`/movie/${movie.id}`}>
+                        <Link href={detailHref}>
                           <h3 className="m-0 mb-2 text-lg font-bold">{movie.title}</h3>
                         </Link>
-                        {(movie.year || movie.runtime) && (
+                        {(movie.year || movie.runtime || movie.numberOfSeasons) && (
                           <span className="badge">
                             {movie.year}
-                            {movie.year && movie.runtime ? ' • ' : ''}
-                            {movie.runtime ? `${movie.runtime} dk` : ''}
+                            {movie.year && (movie.numberOfSeasons || movie.runtime) ? ' • ' : ''}
+                            {movie.numberOfSeasons
+                              ? `${movie.numberOfSeasons} Sezon`
+                              : movie.runtime
+                                ? `${movie.runtime} dk`
+                                : ''}
                           </span>
                         )}
                       </div>
@@ -579,7 +638,6 @@ export function CineBotClient() {
                         </div>
                       </div>
 
-                      {/* Doğrulanmış Yönetmen & Ortak Sinyal Etiketleri */}
                       {(movie.director || (movie.matchHighlights && movie.matchHighlights.length > 0)) && (
                         <div className="rec-meta-signals">
                           {movie.director && (
@@ -599,7 +657,6 @@ export function CineBotClient() {
                         </div>
                       )}
 
-                      {/* Film Türleri */}
                       {movie.genres && movie.genres.length > 0 && (
                         <div className="flex-row flex-wrap gap-6 mb-4">
                           {movie.genres.slice(0, 3).map((g) => (
@@ -610,7 +667,6 @@ export function CineBotClient() {
                         </div>
                       )}
 
-                      {/* Filme Özgü Öneri Gerekçesi */}
                       <div className="ai-reason-box">
                         <div className="ai-reason-label">
                           <Lightbulb size={13} aria-hidden="true" /> Neden Önerildi?
@@ -692,7 +748,7 @@ export function CineBotClient() {
               >
                 <Sparkles size={13} color="#2196f3" aria-hidden="true" />
                 <span>{item.query}</span>
-                <span className="text-muted text-xs">({item.suggestions.length} film)</span>
+                <span className="text-muted text-xs">({item.suggestions.length} yapım)</span>
               </button>
             ))}
           </div>

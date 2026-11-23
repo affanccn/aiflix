@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getTrendingMovies, isTmdbConfigured } from '@/lib/tmdb';
+import { getTrendingMovies, getTrendingTvShows, isTmdbConfigured } from '@/lib/tmdb';
 
 const TrendingQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(20).default(10),
+  type: z.enum(['movie', 'tv', 'all']).default('movie'),
 });
 
 export async function GET(request: Request) {
@@ -17,16 +18,35 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = TrendingQuerySchema.safeParse({
     limit: searchParams.get('limit') ?? undefined,
+    type: searchParams.get('type') ?? undefined,
   });
 
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Geçersiz limit parametresi.' }, { status: 400 });
+    return NextResponse.json({ error: 'Geçersiz trend sorgu parametresi.' }, { status: 400 });
   }
 
   try {
-    const results = await getTrendingMovies(parsed.data.limit);
+    const { limit, type } = parsed.data;
+    let results;
+    if (type === 'tv') {
+      results = await getTrendingTvShows(limit);
+    } else if (type === 'all') {
+      const half = Math.ceil(limit / 2);
+      const [movies, tv] = await Promise.all([
+        getTrendingMovies(half),
+        getTrendingTvShows(limit - half),
+      ]);
+      results = [];
+      for (let i = 0; i < Math.max(movies.length, tv.length) && results.length < limit; i++) {
+        if (movies[i]) results.push(movies[i]);
+        if (tv[i] && results.length < limit) results.push(tv[i]);
+      }
+    } else {
+      results = await getTrendingMovies(limit);
+    }
+
     return NextResponse.json(
-      { results, count: results.length },
+      { results, count: results.length, type },
       {
         headers: {
           'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
@@ -36,7 +56,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('[API /trending] Hata:', error);
     return NextResponse.json(
-      { error: 'Trend filmler şu an alınamıyor. Lütfen tekrar deneyin.' },
+      { error: 'Trend yapımlar şu an alınamıyor. Lütfen tekrar deneyin.' },
       { status: 502 }
     );
   }

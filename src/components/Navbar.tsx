@@ -233,13 +233,13 @@ export function Navbar() {
             <div className="nav-search" ref={searchWrapRef}>
               <form className="nav-search-box" onSubmit={handleSearchSubmit} role="search">
                 <label htmlFor="global-movie-search" className="sr-only">
-                  Film ara
+                  Film veya dizi ara
                 </label>
                 <input
                   id="global-movie-search"
                   type="search"
                   className="nav-search-input"
-                  placeholder="Film veya yönetmen ara..."
+                  placeholder="Film veya dizi ara..."
                   value={query}
                   onFocus={() => setSearchOpen(true)}
                   onChange={(e) => {
@@ -248,7 +248,7 @@ export function Navbar() {
                   }}
                   autoComplete="off"
                 />
-                <button type="submit" className="nav-search-btn" aria-label="Film ara">
+                <button type="submit" className="nav-search-btn" aria-label="Film veya dizi ara">
                   <Search size={15} />
                 </button>
               </form>
@@ -256,15 +256,16 @@ export function Navbar() {
               {searchOpen && query.trim().length >= 2 && (
                 <div className="nav-search-dropdown" role="listbox" aria-label="Arama önerileri">
                   {searching ? (
-                    <div className="nav-search-status">Filmler aranıyor...</div>
+                    <div className="nav-search-status">Film ve diziler aranıyor...</div>
                   ) : results.length > 0 ? (
                     <>
                       {results.map((movie) => {
+                        const isTv = movie.mediaType === 'tv';
                         const poster = getTmdbImageUrl(movie.posterPath, 'w185');
                         return (
                           <Link
-                            key={movie.id}
-                            href={`/movie/${movie.id}`}
+                            key={`${movie.mediaType || 'movie'}-${movie.id}`}
+                            href={isTv ? `/tv/${movie.id}` : `/movie/${movie.id}`}
                             className="nav-search-item"
                             onClick={() => setSearchOpen(false)}
                           >
@@ -282,6 +283,8 @@ export function Navbar() {
                             <div className="nav-search-info">
                               <div className="nav-search-title">{movie.title}</div>
                               <div className="nav-search-meta">
+                                <span>{isTv ? 'Dizi' : 'Film'}</span>
+                                <span>•</span>
                                 <span>{movie.year || '—'}</span>
                                 <span className="inline-flex-center gap-3 text-gold">
                                   <Star size={12} fill="currentColor" /> {movie.voteAverage}

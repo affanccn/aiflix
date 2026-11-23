@@ -10,10 +10,11 @@ import { sanitizePrompt } from '@/lib/security';
 const CineBotRequestSchema = z.object({
   query: z.string().trim().min(2, 'En az 2 karakter girin.').max(240, 'En fazla 240 karakter girebilirsiniz.'),
   mode: z.enum(['movie', 'vibe']).default('movie'),
+  mediaType: z.enum(['all', 'movie', 'tv']).default('all'),
   genre: z
     .string()
     .default('all')
-    .refine((g) => g in GENRE_SLUG_TO_ID, 'Geçersiz film türü.'),
+    .refine((g) => g in GENRE_SLUG_TO_ID, 'Geçersiz film/dizi türü.'),
   count: z.coerce.number().int().min(1).max(6).default(6),
 });
 
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
       240
     ),
     mode: body.mode === 'ai' || body.mode === 'vibe' ? 'vibe' : 'movie',
+    mediaType:
+      body.mediaType === 'movie' || body.mediaType === 'tv' || body.mediaType === 'all'
+        ? body.mediaType
+        : 'all',
     genre: typeof body.genre === 'string' ? body.genre : 'all',
     count: body.count ?? body.numberOfSuggestions ?? body.limit ?? 6,
   };

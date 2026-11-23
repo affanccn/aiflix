@@ -25,9 +25,9 @@ export function Footer() {
               </span>
             </Link>
             <p className="footer-desc">
-              Yapay zeka destekli film keşif motoru ve sinemaseverlerin buluşma noktası. Ruh
-              halinize en uygun filmleri bulun, listelerinizi oluşturun ve FilmSözlük&apos;te
-              tartışın.
+              Yapay zeka destekli film &amp; dizi keşif motoru ve sinemaseverlerin buluşma noktası.
+              Ruh halinize en uygun film ve dizileri bulun, listelerinizi oluşturun ve
+              FilmSözlük&apos;te tartışın.
             </p>
           </div>
 
@@ -35,8 +35,8 @@ export function Footer() {
             <h2 className="footer-heading">Platform</h2>
             <ul className="footer-links">
               <li><Link href="/">Anasayfa &amp; Trendler</Link></li>
-              <li><Link href="/cinebot">CineBot AI Önerileri</Link></li>
-              <li><Link href="/search">Gelişmiş Film Arama</Link></li>
+              <li><Link href="/cinebot">CineBot AI Film &amp; Dizi Önerileri</Link></li>
+              <li><Link href="/search">Gelişmiş Film &amp; Dizi Arama</Link></li>
               <li><Link href="/filmsozluk">FilmSözlük Topluluğu</Link></li>
             </ul>
           </div>

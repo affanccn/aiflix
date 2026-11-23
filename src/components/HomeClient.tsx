@@ -11,6 +11,7 @@ import {
   Heart,
   RotateCcw,
   Film,
+  Tv,
   PenSquare,
   LogIn,
   Bookmark,
@@ -27,7 +28,7 @@ import { fetchLatestForumEntries } from '@/lib/firestore-service';
 import type { ForumEntry, MovieSummary } from '@/types';
 
 const VIBE_SHORTCUTS = [
-  { label: 'Ters Köşe Gerilim', query: 'Ters köşe yapan zihin bükücü gerilim filmleri', genre: 'thriller' },
+  { label: 'Ters Köşe Gerilim', query: 'Ters köşe yapan zihin bükücü gerilim film ve dizileri', genre: 'thriller' },
   { label: 'Derin Uzay & Bilim Kurgu', query: 'Derin uzayda geçen yalnızlık ve gizem temalı', genre: 'sci-fi' },
   { label: 'Karanlık Polisiye', query: 'Karanlık dedektif ve seri katil kovalamacası', genre: 'crime' },
   { label: 'Cyberpunk & Distopya', query: 'Cyberpunk atmosferli distopik aksiyon', genre: 'action' },
@@ -35,9 +36,10 @@ const VIBE_SHORTCUTS = [
 
 interface HomeClientProps {
   initialTrending: MovieSummary[];
+  initialTrendingTv: MovieSummary[];
 }
 
-export function HomeClient({ initialTrending }: HomeClientProps) {
+export function HomeClient({ initialTrending, initialTrendingTv }: HomeClientProps) {
   const router = useRouter();
   const { user, loading: authLoading, displayName, avatarUrl } = useAuth();
 
@@ -47,6 +49,10 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'carousel'>('grid');
 
+  const [trendingTv, setTrendingTv] = useState<MovieSummary[]>(initialTrendingTv);
+  const [tvLoading, setTvLoading] = useState(initialTrendingTv.length === 0);
+  const [tvError, setTvError] = useState<string | null>(null);
+
   const [entries, setEntries] = useState<ForumEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(true);
   const [entriesError, setEntriesError] = useState<string | null>(null);
@@ -55,7 +61,7 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
     setTrendingLoading(true);
     setTrendingError(null);
     try {
-      const res = await fetch('/api/trending?limit=10');
+      const res = await fetch('/api/trending?limit=10&type=movie');
       const data = (await res.json()) as { results?: MovieSummary[]; error?: string };
       if (!res.ok) {
         throw new Error(data.error || 'Trend filmler alınamadı.');
@@ -70,11 +76,36 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
     }
   }, []);
 
+  const loadTrendingTv = useCallback(async () => {
+    setTvLoading(true);
+    setTvError(null);
+    try {
+      const res = await fetch('/api/trending?limit=10&type=tv');
+      const data = (await res.json()) as { results?: MovieSummary[]; error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || 'Trend diziler alınamadı.');
+      }
+      setTrendingTv(data.results || []);
+    } catch (err) {
+      setTvError(
+        err instanceof Error ? err.message : 'Trend diziler yüklenirken bir sorun oluştu.'
+      );
+    } finally {
+      setTvLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (initialTrending.length === 0) {
       loadTrending();
     }
   }, [initialTrending.length, loadTrending]);
+
+  useEffect(() => {
+    if (initialTrendingTv.length === 0) {
+      loadTrendingTv();
+    }
+  }, [initialTrendingTv.length, loadTrendingTv]);
 
   const loadEntries = useCallback(async () => {
     setEntriesLoading(true);
@@ -120,26 +151,26 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
           <div className="hero-content">
             <span className="hero-eyebrow">
               <Sparkles size={15} aria-hidden="true" />
-              Gemini AI + TMDB Destekli Sinema Platformu
+              Gemini AI + TMDB Destekli Film &amp; Dizi Platformu
             </span>
             <h1 className="hero-title">
-              Sıradaki Favori Filmini <span className="hero-title-accent">Yapay Zeka</span> ile
+              Sıradaki Favori Film veya Dizini <span className="hero-title-accent">Yapay Zeka</span> ile
               Keşfet
             </h1>
             <p className="hero-subtitle">
-              Sevdiğin filmlere benzer başyapıtları bul, ruh haline özel öneriler al ve FilmSözlük
-              topluluğunda sinemaseverlerle fikirlerini paylaş.
+              Sevdiğin film ve dizilere benzer başyapıtları bul, ruh haline özel öneriler al ve
+              FilmSözlük topluluğunda sinemaseverlerle fikirlerini paylaş.
             </p>
 
             <form className="hero-search-form" onSubmit={handleHeroSubmit} role="search">
               <label htmlFor="hero-movie-input" className="sr-only">
-                Sevdiğiniz bir film adı veya tema yazın
+                Sevdiğiniz bir film veya dizi adı yazın
               </label>
               <input
                 id="hero-movie-input"
                 type="text"
                 className="hero-search-input"
-                placeholder="Sevdiğin bir filmi yaz (Örn: Interstellar, Matrix, Inception)..."
+                placeholder="Sevdiğin bir film veya dizi yaz (Örn: Interstellar, Breaking Bad, Dark)..."
                 value={heroInput}
                 onChange={(e) => setHeroInput(e.target.value)}
                 maxLength={160}
@@ -179,7 +210,7 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
               Haftanın Trend Filmleri
             </h2>
             <p className="section-subtitle">
-              TMDB verilerine göre bu hafta dünya genelinde en çok konuşulan 10 yapım
+              TMDB verilerine göre bu hafta dünya genelinde en çok konuşulan 10 film
             </p>
           </div>
 
@@ -204,8 +235,8 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
                 <GalleryHorizontalEnd size={15} />
               </button>
             </div>
-            <Link href="/search" className="btn btn-secondary btn-sm">
-              Tümünü Keşfet <ArrowRight size={14} aria-hidden="true" />
+            <Link href="/search?type=movie" className="btn btn-secondary btn-sm">
+              Tüm Filmler <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -230,7 +261,7 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
             <Film size={40} color="#8b9ab8" aria-hidden="true" />
             <h3 className="state-box-title">Şu an listelenecek trend film yok</h3>
             <p className="state-box-text">
-              CineBot AI üzerinden doğrudan ruh haline veya sevdiğin filme göre arama yapabilirsin.
+              CineBot AI üzerinden doğrudan ruh haline veya sevdiğin film/diziye göre arama yapabilirsin.
             </p>
             <Link href="/cinebot" className="btn btn-primary">
               CineBot&apos;a Git
@@ -241,7 +272,60 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
         ) : (
           <div className="movies-grid-5">
             {trending.slice(0, 10).map((movie, idx) => (
-              <MovieCard key={movie.id} movie={movie} priority={idx < 5} />
+              <MovieCard key={`movie-${movie.id}`} movie={movie} priority={idx < 5} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="page-section container pt-12" aria-labelledby="trending-tv-heading">
+        <div className="section-header">
+          <div>
+            <h2 id="trending-tv-heading" className="section-title">
+              <Tv size={24} color="#2196f3" aria-hidden="true" />
+              Haftanın Trend Dizileri
+            </h2>
+            <p className="section-subtitle">
+              Bu hafta dünyada en çok izlenen ve konuşulan 10 dizi
+            </p>
+          </div>
+
+          <div className="section-actions">
+            <Link href="/search?type=tv" className="btn btn-secondary btn-sm">
+              Tüm Diziler <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+
+        {tvLoading ? (
+          <div className="movies-grid-5" aria-busy="true" aria-label="Trend diziler yükleniyor">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <MovieCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : tvError ? (
+          <div className="state-box" role="alert">
+            <Tv size={40} color="#f87171" aria-hidden="true" />
+            <h3 className="state-box-title">Trend diziler yüklenemedi</h3>
+            <p className="state-box-text">{tvError}</p>
+            <button type="button" className="btn btn-primary" onClick={loadTrendingTv}>
+              <RotateCcw size={15} /> Tekrar Dene
+            </button>
+          </div>
+        ) : trendingTv.length === 0 ? (
+          <div className="state-box">
+            <Tv size={40} color="#8b9ab8" aria-hidden="true" />
+            <h3 className="state-box-title">Şu an listelenecek trend dizi yok</h3>
+            <Link href="/cinebot?mediaType=tv" className="btn btn-primary">
+              CineBot ile Dizi Bul
+            </Link>
+          </div>
+        ) : viewMode === 'carousel' ? (
+          <MovieCarousel title="" movies={trendingTv.slice(0, 10)} />
+        ) : (
+          <div className="movies-grid-5">
+            {trendingTv.slice(0, 10).map((show) => (
+              <MovieCard key={`tv-${show.id}`} movie={show} />
             ))}
           </div>
         )}
@@ -256,7 +340,9 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
                   <MessageSquare size={22} color="#2196f3" aria-hidden="true" />
                   FilmSözlük Son Tartışmalar
                 </h2>
-                <p className="section-subtitle">Topluluktan en güncel film analizleri ve teoriler</p>
+                <p className="section-subtitle">
+                  Topluluktan en güncel film &amp; dizi analizleri ve teoriler
+                </p>
               </div>
               <Link href="/filmsozluk" className="btn btn-secondary btn-sm">
                 Tüm Başlıklar <ArrowRight size={14} aria-hidden="true" />
@@ -283,9 +369,9 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
             ) : entries.length === 0 ? (
               <div className="state-box">
                 <MessageSquare size={36} color="#ff6b08" aria-hidden="true" />
-                <h3 className="state-box-title">İlk sinema tartışmasını sen başlat!</h3>
+                <h3 className="state-box-title">İlk film &amp; dizi tartışmasını sen başlat!</h3>
                 <p className="state-box-text">
-                  Son izlediğin film hakkındaki düşüncelerini FilmSözlük&apos;te toplulukla paylaş.
+                  Son izlediğin film veya dizi hakkındaki düşüncelerini FilmSözlük&apos;te toplulukla paylaş.
                 </p>
                 <Link href="/filmsozluk" className="btn btn-primary btn-sm">
                   <PenSquare size={15} /> Yeni Başlık Aç
@@ -346,8 +432,8 @@ export function HomeClient({ initialTrending }: HomeClientProps) {
               </h2>
               <p className="m-0 text-sm text-muted">
                 {user
-                  ? 'Listelerini yönet, öneri geçmişini incele ve tartışmalara katıl.'
-                  : 'Favorilerini kaydetmek ve FilmSözlük’te yazmak için giriş yap.'}
+                  ? 'Film ve dizi listelerini yönet, öneri geçmişini incele ve tartışmalara katıl.'
+                  : 'Favori film ve dizilerini kaydetmek, FilmSözlük’te yazmak için giriş yap.'}
               </p>
             </div>
 

@@ -1,19 +1,22 @@
 import { z } from 'zod';
-import type { CineBotResponse } from '@/types';
+import type { CineBotResponse, MediaFilter, MediaType } from '@/types';
 import {
   discoverMoviesBySignals,
-  findRichTmdbMovie,
+  discoverTvBySignals,
+  findRichTmdbMedia,
   getRichMovieMetadata,
+  getRichTvMetadata,
   getSpecificKeywordIds,
   type RichMovieMetadata,
 } from '@/lib/tmdb';
-import { GENRE_ID_TO_NAME, GENRE_SLUG_TO_ID } from '@/lib/genres';
+import { GENRE_ID_TO_NAME, GENRE_SLUG_TO_ID, TV_GENRE_SLUG_TO_ID } from '@/lib/genres';
 import { sanitizePrompt } from '@/lib/security';
 import {
   computeMovieSimilarity,
   computeVibeSimilarity,
   extractVibeIntent,
   finalizeRecommendations,
+  isSameFranchiseOrSeries,
   selectDiverseRecommendations,
   type CandidateSignals,
   type ScoredCandidate,
@@ -22,6 +25,7 @@ import {
 export const GeminiRecommendationItemSchema = z.object({
   title: z.string().trim().min(1).max(200),
   originalTitle: z.string().trim().min(1).max(200),
+  mediaType: z.enum(['movie', 'tv']).catch('movie'),
   year: z.coerce.number().int().min(1900).max(2035).catch(2015),
   semanticMatch: z.coerce
     .number()
@@ -48,9 +52,14 @@ const GEMINI_JSON_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          title: { type: 'STRING', description: 'Filmin Türkçe veya yaygın adı' },
-          originalTitle: { type: 'STRING', description: 'Filmin resmi orijinal adı' },
-          year: { type: 'INTEGER', description: 'Vizyon yılı (örn. 2016)' },
+          title: { type: 'STRING', description: 'Yapımın Türkçe veya yaygın adı' },
+          originalTitle: { type: 'STRING', description: 'Yapımın resmi orijinal adı' },
+          mediaType: {
+            type: 'STRING',
+            enum: ['movie', 'tv'],
+            description: 'Film için "movie", dizi için "tv"',
+          },
+          year: { type: 'INTEGER', description: 'Vizyon veya ilk yayın yılı (örn. 2016)' },
           semanticMatch: {
             type: 'INTEGER',
             description:
@@ -59,15 +68,23 @@ const GEMINI_JSON_SCHEMA = {
           sharedThemes: {
             type: 'ARRAY',
             items: { type: 'STRING' },
-            description: 'Seçilen film veya istekle somut ortak 2-3 kısa Türkçe tema etiketi',
+            description: 'Seçilen yapım veya istekle somut ortak 2-3 kısa Türkçe tema etiketi',
           },
           aiReason: {
             type: 'STRING',
             description:
-              'Bu filme özgü, diğer filmlerle aynı kalıbı tekrarlamayan, somut konu/tema/atmosfer/anlatım benzerliğini açıklayan 1-2 cümlelik doğal ve doğru Türkçe gerekçe',
+              'Bu yapıma özgü, diğer önerilerle aynı kalıbı tekrarlamayan, somut konu/tema/atmosfer/anlatım benzerliğini açıklayan 1-2 cümlelik doğal ve doğru Türkçe gerekçe',
           },
         },
-        required: ['title', 'originalTitle', 'year', 'semanticMatch', 'sharedThemes', 'aiReason'],
+        required: [
+          'title',
+          'originalTitle',
+          'mediaType',
+          'year',
+          'semanticMatch',
+          'sharedThemes',
+          'aiReason',
+        ],
       },
     },
   },
@@ -81,9 +98,10 @@ export function isGeminiConfigured(): boolean {
 async function queryGeminiStructured(params: {
   query: string;
   mode: 'movie' | 'vibe';
+  mediaType: MediaFilter;
   count: number;
   genreLabel: string | null;
-  seedMovie: RichMovieMetadata | null;
+  seedMedia: RichMovieMetadata | null;
 }): Promise<GeminiRecommendationItem[] | null> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
@@ -93,42 +111,51 @@ async function queryGeminiStructured(params: {
     new Set([configuredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
   );
 
-  // Çeşitlilik + TMDB doğrulama filtrelemesi sonrası 6 güçlü film seçebilmek için 10 aday iste
   const requestCount = Math.min(Math.max(params.count + 4, 9), 11);
 
-  const seedContextBlock = params.seedMovie
+  const seedTypeLabel = params.seedMedia?.summary.mediaType === 'tv' ? 'dizi' : 'film';
+  const seedContextBlock = params.seedMedia
     ? [
-        'REFERANS FİLMİN DOĞRULANMIŞ TMDB BİLGİLERİ:',
-        `- Adı: ${params.seedMovie.summary.title} (${params.seedMovie.summary.originalTitle}, ${params.seedMovie.summary.year || 'bilinmiyor'})`,
-        `- Yönetmen: ${params.seedMovie.directorNames.join(', ') || 'bilinmiyor'}`,
-        `- Başlıca Oyuncular: ${params.seedMovie.castNames.slice(0, 5).join(', ') || 'bilinmiyor'}`,
-        `- Türler: ${params.seedMovie.genres.join(', ') || 'bilinmiyor'}`,
-        `- Anahtar Temalar: ${params.seedMovie.keywordNames.slice(0, 10).join(', ') || 'bilinmiyor'}`,
-        `- Özet: ${params.seedMovie.overviewText.slice(0, 360) || 'yok'}`,
+        `REFERANS YAPIMIN (${seedTypeLabel.toUpperCase()}) DOĞRULANMIŞ TMDB BİLGİLERİ:`,
+        `- Adı: ${params.seedMedia.summary.title} (${params.seedMedia.summary.originalTitle}, ${params.seedMedia.summary.year || 'bilinmiyor'})`,
+        `- Yönetmen / Yaratıcı: ${params.seedMedia.directorNames.join(', ') || 'bilinmiyor'}`,
+        `- Başlıca Oyuncular: ${params.seedMedia.castNames.slice(0, 5).join(', ') || 'bilinmiyor'}`,
+        `- Türler: ${params.seedMedia.genres.join(', ') || 'bilinmiyor'}`,
+        `- Anahtar Temalar: ${params.seedMedia.keywordNames.slice(0, 10).join(', ') || 'bilinmiyor'}`,
+        `- Özet: ${params.seedMedia.overviewText.slice(0, 360) || 'yok'}`,
       ].join('\n')
     : '';
 
+  const mediaScopeInstruction =
+    params.mediaType === 'movie'
+      ? 'SADECE sinema filmleri öner (mediaType: "movie"). Dizi önerme.'
+      : params.mediaType === 'tv'
+        ? 'SADECE diziler öner (mediaType: "tv"). Sinema filmi önerme.'
+        : 'Hem sinema filmleri ("movie") hem de diziler ("tv") arasından en iyi eşleşen dengeli bir karışım öner.';
+
   const modeInstruction =
     params.mode === 'movie'
-      ? `Kullanıcı "${params.seedMovie?.summary.title || params.query}" filmine GERÇEKTEN benzeyen filmler arıyor. Bu filmin kendisini kesinlikle önerme.`
+      ? `Kullanıcı "${params.seedMedia?.summary.title || params.query}" yapımına GERÇEKTEN benzeyen farklı yapımlar arıyor. Bu yapımın kendisini ve aynı serideki devam/ön filmlerini KESİNLİKLE önerme.`
       : `Kullanıcı şu ruh hali/tema/hikâye arayışında: "${params.query}".`;
 
   const genreInstruction = params.genreLabel
     ? `Kullanıcı özellikle "${params.genreLabel}" türüne odaklanmak istiyor; öneriler bu türle uyumlu olsun.`
-    : 'Tür kısıtı yok; tek bir alt türe yığılmadan hikâye ve atmosfer uyumu yüksek, tür çeşitliliği dengeli filmler seç.';
+    : 'Tür kısıtı yok; tek bir alt türe yığılmadan hikâye ve atmosfer uyumu yüksek, tür çeşitliliği dengeli yapımlar seç.';
 
   const prompt = [
-    'Sen derin sinema bilgisine sahip bir film küratörüsün.',
+    'Sen derin sinema ve dizi bilgisine sahip bir küratörsün.',
     modeInstruction,
+    mediaScopeInstruction,
     seedContextBlock,
     genreInstruction,
-    `Toplam ${requestCount} adet GERÇEK sinema filmi öner.`,
+    `Toplam ${requestCount} adet GERÇEK yapım öner.`,
     'ZORUNLU KURALLAR:',
-    '1) Yalnızca kategori/tür benzerliğine göre alakasız popüler filmleri önerme! Konu, hikâye yapısı, ana temalar, atmosfer, anlatım ritmi, yönetmenlik yaklaşımı veya karakter dinamikleri bakımından gerçek benzerlik taşıyan filmleri seç.',
-    '2) ÇEŞİTLİLİK: Aynı yönetmenden en fazla 1 film öner. Aynı film serisinden/franchise’dan en fazla 1 film öner (referans filmin doğrudan devam filmlerini listeye doldurma).',
-    '3) AÇIKLAMA KALİTESİ: Her film için `aiReason` alanı TAMAMEN farklı cümle yapısıyla yazılsın. Aynı açılış kalıbını veya şablon cümleyi asla tekrarlama. Somut hikâye/tema/atmosfer/anlatım bağını açıkla. Var olmayan oyuncu, yönetmen veya sahne uydurma!',
-    '4) BENZERLİK PUANI: `semanticMatch` alanı 50-96 arası gerçekçi ve birbirinden farklılaşan benzerlik skoru olsun (IMDb puanıyla karıştırma).',
-    '5) Sadece TMDB veritabanında gerçekten var olan filmleri öner; uydurma film yazma.',
+    '1) AYNI SERİ KESİN ENGELİ: Aranan yapımın kendi serisindeki hiçbir devam, ön film veya yan yapımı ASLA önerme! (Örn: Recep İvedik arandıysa Recep İvedik 2-7, Maze Runner arandıysa Maze Runner: Scorch Trials / Death Cure, Harry Potter arandıysa diğer Harry Potter filmlerini KESİNLİKLE önerme.)',
+    '2) Yalnızca kategori/tür benzerliğine göre alakasız popüler yapımları önerme! Konu, hikâye yapısı, ana temalar, atmosfer, anlatım ritmi, yönetmen/yaratıcı yaklaşımı veya karakter dinamikleri bakımından gerçek benzerlik taşıyan yapımları seç.',
+    '3) ÇEŞİTLİLİK: Aynı yönetmen/yaratıcıdan en fazla 1 yapım, aynı başka bir seriden en fazla 1 yapım öner.',
+    '4) AÇIKLAMA KALİTESİ: Her yapım için `aiReason` alanı TAMAMEN farklı cümle yapısıyla yazılsın. Aynı açılış kalıbını veya şablon cümleyi asla tekrarlama. Somut hikâye/tema/atmosfer/anlatım bağını açıkla. Var olmayan oyuncu, yönetmen veya sahne uydurma!',
+    '5) BENZERLİK PUANI: `semanticMatch` alanı 50-96 arası gerçekçi ve birbirinden farklılaşan benzerlik skoru olsun (IMDb puanıyla karıştırma).',
+    '6) Sadece TMDB veritabanında gerçekten var olan film ve dizileri öner; uydurma yapım yazma.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -205,84 +232,127 @@ async function queryGeminiStructured(params: {
 export async function generateCineBotRecommendations(params: {
   query: string;
   mode: 'movie' | 'vibe';
+  mediaType?: MediaFilter;
   genre: string;
   count: number;
 }): Promise<CineBotResponse> {
   const cleanQuery = sanitizePrompt(params.query, 240);
-  const genreId = GENRE_SLUG_TO_ID[params.genre] ?? null;
-  const genreLabel = genreId ? GENRE_ID_TO_NAME[genreId] ?? null : null;
+  const requestedMediaType: MediaFilter = params.mediaType || 'all';
+  const movieGenreId = GENRE_SLUG_TO_ID[params.genre] ?? null;
+  const tvGenreId = TV_GENRE_SLUG_TO_ID[params.genre] ?? movieGenreId;
+  const genreLabel = movieGenreId ? GENRE_ID_TO_NAME[movieGenreId] ?? null : null;
   const targetCount = Math.min(Math.max(params.count || 6, 1), 6);
 
-  // 1) Film modunda referans filmin zengin TMDB metadata'sını çek (yönetmen, kadro, anahtar kelimeler, özet, öneriler)
-  let seedMovie: RichMovieMetadata | null = null;
+  // 1) Referans film veya dizinin zengin TMDB metadata'sını çek
+  let seedMedia: RichMovieMetadata | null = null;
   if (params.mode === 'movie') {
-    seedMovie = await findRichTmdbMovie(cleanQuery, undefined, undefined, true);
+    seedMedia = await findRichTmdbMedia(cleanQuery, undefined, undefined, 'all', true);
   }
 
   const effectiveMode: 'movie' | 'vibe' =
-    params.mode === 'movie' && seedMovie ? 'movie' : 'vibe';
+    params.mode === 'movie' && seedMedia ? 'movie' : 'vibe';
 
   const vibeIntent =
-    effectiveMode === 'vibe' ? extractVibeIntent(cleanQuery, genreId) : null;
+    effectiveMode === 'vibe' ? extractVibeIntent(cleanQuery, movieGenreId) : null;
 
-  const seedIsAnimation = Boolean(seedMovie?.genreIds.includes(16));
+  const seedIsAnimation = Boolean(seedMedia?.genreIds.includes(16));
+  const seedType: MediaType = seedMedia?.summary.mediaType === 'tv' ? 'tv' : 'movie';
 
-  // 2) Gemini semantik adayları + TMDB tematik keşfi paralel çalıştır
-  const [geminiItems, keywordDiscoverPool] = await Promise.all([
+  const wantMovies = requestedMediaType === 'all' || requestedMediaType === 'movie';
+  const wantTv = requestedMediaType === 'all' || requestedMediaType === 'tv';
+
+  // 2) Gemini semantik adayları + TMDB tematik film/dizi keşfini paralel çalıştır
+  const [geminiItems, movieDiscoverPool, tvDiscoverPool] = await Promise.all([
     queryGeminiStructured({
       query: cleanQuery,
       mode: effectiveMode,
+      mediaType: requestedMediaType,
       count: targetCount,
       genreLabel,
-      seedMovie,
+      seedMedia,
     }),
-    effectiveMode === 'movie' && seedMovie
-      ? discoverMoviesBySignals({
-          keywordIds: getSpecificKeywordIds(seedMovie, 6),
-          genreIds: genreId ? [genreId] : undefined,
-          anyGenreIds: !genreId ? seedMovie.genreIds.slice(0, 2) : undefined,
-          withoutGenreIds: !seedIsAnimation && genreId !== 16 ? [16, 10751] : undefined,
-          minVoteCount: 350,
-          minVoteAverage: 6.4,
-        })
-      : effectiveMode === 'vibe' && vibeIntent
+    wantMovies
+      ? effectiveMode === 'movie' && seedMedia
         ? discoverMoviesBySignals({
-            keywordIds: vibeIntent.inferredKeywordIds,
-            genreIds: genreId ? [genreId] : undefined,
-            anyGenreIds: !genreId ? vibeIntent.inferredGenreIds.slice(0, 2) : undefined,
-            withoutGenreIds: !vibeIntent.wantsAnimation && genreId !== 16 ? [16, 10751] : undefined,
-            minVoteCount: 250,
-            minVoteAverage: 6.4,
+            keywordIds: getSpecificKeywordIds(seedMedia, 6),
+            genreIds: movieGenreId ? [movieGenreId] : undefined,
+            anyGenreIds: !movieGenreId && seedType === 'movie' ? seedMedia.genreIds.slice(0, 2) : undefined,
+            withoutGenreIds: !seedIsAnimation && movieGenreId !== 16 ? [16, 10751] : undefined,
+            minVoteCount: 300,
+            minVoteAverage: 6.3,
           })
-        : Promise.resolve([]),
+        : effectiveMode === 'vibe' && vibeIntent
+          ? discoverMoviesBySignals({
+              keywordIds: vibeIntent.inferredKeywordIds,
+              genreIds: movieGenreId ? [movieGenreId] : undefined,
+              anyGenreIds: !movieGenreId ? vibeIntent.inferredGenreIds.slice(0, 2) : undefined,
+              withoutGenreIds: !vibeIntent.wantsAnimation && movieGenreId !== 16 ? [16, 10751] : undefined,
+              minVoteCount: 250,
+              minVoteAverage: 6.3,
+            })
+          : Promise.resolve([])
+      : Promise.resolve([]),
+    wantTv
+      ? effectiveMode === 'movie' && seedMedia
+        ? discoverTvBySignals({
+            keywordIds: getSpecificKeywordIds(seedMedia, 6),
+            genreIds: tvGenreId ? [tvGenreId] : undefined,
+            anyGenreIds: !tvGenreId && seedType === 'tv' ? seedMedia.genreIds.slice(0, 2) : undefined,
+            withoutGenreIds: !seedIsAnimation && tvGenreId !== 16 ? [16, 10762] : undefined,
+            minVoteCount: 150,
+            minVoteAverage: 6.6,
+          })
+        : effectiveMode === 'vibe' && vibeIntent
+          ? discoverTvBySignals({
+              keywordIds: vibeIntent.inferredKeywordIds,
+              genreIds: tvGenreId ? [tvGenreId] : undefined,
+              withoutGenreIds: !vibeIntent.wantsAnimation && tvGenreId !== 16 ? [16, 10762] : undefined,
+              minVoteCount: 120,
+              minVoteAverage: 6.6,
+            })
+          : Promise.resolve([])
+      : Promise.resolve([]),
   ]);
 
-  // 3) Aday havuzu ve çoklu sinyal birleştirme
-  const candidateMetaMap = new Map<number, RichMovieMetadata>();
-  const candidateSignalsMap = new Map<number, CandidateSignals>();
-  const seedId = seedMovie?.summary.id ?? null;
+  // 3) Aday havuzu (anahtar: "movie:123" veya "tv:456") ve çoklu sinyal birleştirme
+  const candidateMetaMap = new Map<string, RichMovieMetadata>();
+  const candidateSignalsMap = new Map<string, CandidateSignals>();
+  const seedKey = seedMedia ? `${seedType}:${seedMedia.summary.id}` : null;
 
-  const mergeSignals = (movieId: number, patch: Partial<CandidateSignals>) => {
-    const existing = candidateSignalsMap.get(movieId) || {};
-    candidateSignalsMap.set(movieId, { ...existing, ...patch });
+  const mergeSignals = (key: string, patch: Partial<CandidateSignals>) => {
+    const existing = candidateSignalsMap.get(key) || {};
+    candidateSignalsMap.set(key, { ...existing, ...patch });
   };
 
-  // A) Gemini adaylarını TMDB zengin metadata ile doğrula (uydurma filmleri ele!)
+  // A) Gemini adaylarını TMDB zengin metadata ile doğrula
   let geminiValidatedCount = 0;
   if (geminiItems && geminiItems.length > 0) {
     const resolvedGemini = await Promise.all(
       geminiItems.map(async (item, idx) => {
-        const meta = await findRichTmdbMovie(item.title, item.originalTitle, item.year, false);
+        const targetType: MediaFilter =
+          requestedMediaType === 'all' ? item.mediaType : requestedMediaType;
+        const meta = await findRichTmdbMedia(
+          item.title,
+          item.originalTitle,
+          item.year,
+          targetType,
+          false
+        );
         return { item, idx, meta };
       })
     );
 
     for (const { item, idx, meta } of resolvedGemini) {
       if (!meta || !meta.summary.id || !meta.summary.posterPath) continue;
-      if (seedId && meta.summary.id === seedId) continue;
+      const mType: MediaType = meta.summary.mediaType === 'tv' ? 'tv' : 'movie';
+      if (requestedMediaType !== 'all' && mType !== requestedMediaType) continue;
 
-      candidateMetaMap.set(meta.summary.id, meta);
-      mergeSignals(meta.summary.id, {
+      const key = `${mType}:${meta.summary.id}`;
+      if (seedKey && key === seedKey) continue;
+      if (seedMedia && isSameFranchiseOrSeries(seedMedia, meta)) continue;
+
+      candidateMetaMap.set(key, meta);
+      mergeSignals(key, {
         fromGemini: true,
         geminiRank: idx,
         geminiSemanticScore: item.semanticMatch,
@@ -293,104 +363,104 @@ export async function generateCineBotRecommendations(params: {
     }
   }
 
-  // B) TMDB çok-kaynaklı adayları (keyword discover + recommendations + similar) dengeli sırayla ekle
-  const tmdbIdsToEnrich: number[] = [];
-  const queuedIds = new Set<number>(seedId ? [seedId] : []);
-  for (const id of candidateMetaMap.keys()) queuedIds.add(id);
+  // B) TMDB çok-kaynaklı adayları dengeli sırayla kuyruğa ekle
+  const toEnrich: Array<{ id: number; type: MediaType }> = [];
+  const queuedKeys = new Set<string>(seedKey ? [seedKey] : []);
+  for (const key of candidateMetaMap.keys()) queuedKeys.add(key);
 
-  // Önce tüm sinyalleri kaydet
-  for (const raw of keywordDiscoverPool.slice(0, 12)) {
-    if (!raw.id || raw.id === seedId) continue;
-    mergeSignals(raw.id, { fromKeywordDiscover: true });
+  const enqueue = (id: number, type: MediaType, patch: Partial<CandidateSignals>) => {
+    const key = `${type}:${id}`;
+    if (seedKey && key === seedKey) return;
+    mergeSignals(key, patch);
+    if (!queuedKeys.has(key)) {
+      queuedKeys.add(key);
+      toEnrich.push({ id, type });
+    }
+  };
+
+  // 1) Tematik Keyword + Tür keşfi (en güçlü alaka sinyali)
+  const maxDiscoverMovies = requestedMediaType === 'movie' ? 10 : requestedMediaType === 'all' ? 6 : 0;
+  const maxDiscoverTv = requestedMediaType === 'tv' ? 10 : requestedMediaType === 'all' ? 6 : 0;
+  for (const raw of movieDiscoverPool.slice(0, maxDiscoverMovies)) {
+    if (raw.id) enqueue(raw.id, 'movie', { fromKeywordDiscover: true });
   }
-  if (seedMovie) {
-    seedMovie.recommendedIds.slice(0, 12).forEach((id, rank) => {
-      if (id === seedId) return;
-      mergeSignals(id, { fromTmdbRecs: true, tmdbRecsRank: rank });
+  for (const raw of tvDiscoverPool.slice(0, maxDiscoverTv)) {
+    if (raw.id) enqueue(raw.id, 'tv', { fromKeywordDiscover: true });
+  }
+
+  // 2) Referans yapımın kendi TMDB recommendations & similar listeleri (aynı medya türü isteniyorsa)
+  if (seedMedia && (requestedMediaType === 'all' || requestedMediaType === seedType)) {
+    seedMedia.recommendedIds.slice(0, 8).forEach((id, rank) => {
+      if (id) enqueue(id, seedType, { fromTmdbRecs: true, tmdbRecsRank: rank });
     });
-    seedMovie.similarIds.slice(0, 10).forEach((id) => {
-      if (id === seedId) return;
-      mergeSignals(id, { fromTmdbSimilar: true });
+    seedMedia.similarIds.slice(0, 6).forEach((id) => {
+      if (id) enqueue(id, seedType, { fromTmdbSimilar: true });
     });
   }
 
-  // Öncelik sırası: 1) Tematik Keyword+Tür eşleşmeleri, 2) TMDB Recommendations, 3) TMDB Similar
-  for (const raw of keywordDiscoverPool.slice(0, 9)) {
-    if (raw.id && !queuedIds.has(raw.id)) {
-      queuedIds.add(raw.id);
-      tmdbIdsToEnrich.push(raw.id);
-    }
-  }
-  if (seedMovie) {
-    for (const id of seedMovie.recommendedIds.slice(0, 7)) {
-      if (id && !queuedIds.has(id)) {
-        queuedIds.add(id);
-        tmdbIdsToEnrich.push(id);
-      }
-    }
-    for (const id of seedMovie.similarIds.slice(0, 5)) {
-      if (id && !queuedIds.has(id)) {
-        queuedIds.add(id);
-        tmdbIdsToEnrich.push(id);
-      }
-    }
-  }
-
-  // Gemini yeterli aday bulamadıysa veya zenginleştirme gerekiyorsa TMDB adaylarının detaylı metadata'sını çek
   const enrichLimit = geminiValidatedCount >= 8 ? 6 : 16;
-  if (tmdbIdsToEnrich.length > 0) {
+  if (toEnrich.length > 0) {
     const extraMetas = await Promise.all(
-      tmdbIdsToEnrich.slice(0, enrichLimit).map((id) => getRichMovieMetadata(id, false))
+      toEnrich.slice(0, enrichLimit).map((item) =>
+        item.type === 'tv' ? getRichTvMetadata(item.id, false) : getRichMovieMetadata(item.id, false)
+      )
     );
     for (const meta of extraMetas) {
       if (!meta || !meta.summary.id || !meta.summary.posterPath) continue;
-      if (seedId && meta.summary.id === seedId) continue;
-      if (!candidateMetaMap.has(meta.summary.id)) {
-        candidateMetaMap.set(meta.summary.id, meta);
+      const mType: MediaType = meta.summary.mediaType === 'tv' ? 'tv' : 'movie';
+      const key = `${mType}:${meta.summary.id}`;
+      if (seedKey && key === seedKey) continue;
+      if (seedMedia && isSameFranchiseOrSeries(seedMedia, meta)) continue;
+      if (!candidateMetaMap.has(key)) {
+        candidateMetaMap.set(key, meta);
       }
     }
   }
 
   // 4) Tüm adayları çok boyutlu benzerlik algoritmasıyla (0-100) puanla
   const scoredCandidates: ScoredCandidate[] = [];
-  for (const [movieId, meta] of candidateMetaMap.entries()) {
-    // Kullanıcı açıkça tür seçtiyse o türe uymayanları (yeterli aday varsa) filtrelemek için genreId'yi ver
-    const signals = candidateSignalsMap.get(movieId) || {};
+  for (const [key, meta] of candidateMetaMap.entries()) {
+    const signals = candidateSignalsMap.get(key) || {};
+    const effectiveGenreId = meta.summary.mediaType === 'tv' ? tvGenreId : movieGenreId;
     const scored =
-      effectiveMode === 'movie' && seedMovie
-        ? computeMovieSimilarity(seedMovie, meta, signals, genreId)
-        : computeVibeSimilarity(cleanQuery, genreId, meta, signals);
+      effectiveMode === 'movie' && seedMedia
+        ? computeMovieSimilarity(seedMedia, meta, signals, effectiveGenreId)
+        : computeVibeSimilarity(cleanQuery, effectiveGenreId, meta, signals);
     scoredCandidates.push(scored);
   }
 
   // Kullanıcı belirli bir tür filtresi seçtiyse önce o türe uyan adayları önceliklendir
   let poolToSelect = scoredCandidates;
-  if (genreId) {
-    const matchingGenre = scoredCandidates.filter((c) => c.metadata.genreIds.includes(genreId));
+  if (movieGenreId || tvGenreId) {
+    const matchingGenre = scoredCandidates.filter((c) => {
+      const targetGid = c.metadata.summary.mediaType === 'tv' ? tvGenreId : movieGenreId;
+      return targetGid ? c.metadata.genreIds.includes(targetGid) : true;
+    });
     if (matchingGenre.length > 0) {
       poolToSelect = matchingGenre;
     }
   }
 
-  // 5) Çeşitlilik (aynı yönetmen/seri kısıtı, tür dengesi) + alaka eşiği ile en iyi 6 filmi seç & sırala
+  // 5) Çeşitlilik + aynı seri kesin engeli + alaka eşiği ile en iyi 6 yapımı seç & sırala
   const selected = selectDiverseRecommendations(poolToSelect, {
     maxCount: targetCount,
     minSimilarityScore: effectiveMode === 'movie' ? 48 : 45,
-    requestedGenreId: genreId,
+    requestedGenreId: movieGenreId,
   });
 
-  // 6) Her film için benzersiz, şablon tekrarsız ve doğrulanmış öneri gerekçelerini oluştur
+  // 6) Her yapım için benzersiz, şablon tekrarsız ve doğrulanmış öneri gerekçelerini oluştur
   const suggestions = finalizeRecommendations(selected, {
     mode: effectiveMode,
     query: cleanQuery,
-    seedTitle: seedMovie?.summary.title ?? null,
+    seedTitle: seedMedia?.summary.title ?? null,
   });
 
   return {
     query: cleanQuery,
     mode: params.mode,
+    mediaType: requestedMediaType,
     engine: geminiValidatedCount > 0 ? 'gemini' : 'tmdb_smart',
-    originalMovie: seedMovie?.summary ?? null,
+    originalMovie: seedMedia?.summary ?? null,
     suggestions,
     count: suggestions.length,
   };

@@ -23,17 +23,19 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://aiflix-rho.vercel.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'AiFlix — Yapay Zeka Destekli Film Keşif & Sinema Topluluğu',
+    default: 'AiFlix — Yapay Zeka Destekli Film & Dizi Keşif Platformu',
     template: '%s | AiFlix',
   },
   description:
-    'Sevdiğiniz filmlere benzer yapımları CineBot yapay zeka asistanıyla keşfedin, haftanın trend filmlerini inceleyin ve FilmSözlük topluluğunda tartışın.',
+    'Sevdiğiniz film ve dizilere benzer yapımları CineBot yapay zeka asistanıyla keşfedin, haftanın trend film ve dizilerini inceleyin, FilmSözlük topluluğunda tartışın.',
   keywords: [
     'film öneri',
-    'yapay zeka film öneri',
+    'dizi öneri',
+    'yapay zeka film dizi öneri',
     'CineBot',
     'FilmSözlük',
     'trend filmler',
+    'trend diziler',
     'sinema topluluğu',
     'AiFlix',
   ],
@@ -53,23 +55,23 @@ export const metadata: Metadata = {
     locale: 'tr_TR',
     url: SITE_URL,
     siteName: 'AiFlix',
-    title: 'AiFlix — Yapay Zeka Destekli Film Keşif Platformu',
+    title: 'AiFlix — Yapay Zeka Destekli Film & Dizi Keşif Platformu',
     description:
-      'Ruh halinize ve sevdiğiniz filmlere göre kişiselleştirilmiş yapay zeka film önerileri ve aktif sinema topluluğu.',
+      'Ruh halinize ve sevdiğiniz film & dizilere göre kişiselleştirilmiş yapay zeka önerileri ve aktif sinema topluluğu.',
     images: [
       {
         url: '/img/og-brand.png',
         width: 1200,
         height: 630,
-        alt: 'AiFlix Yapay Zeka Film Platformu',
+        alt: 'AiFlix Yapay Zeka Film & Dizi Platformu',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AiFlix — Yapay Zeka Destekli Film Keşif Platformu',
+    title: 'AiFlix — Yapay Zeka Destekli Film & Dizi Keşif Platformu',
     description:
-      'Sevdiğiniz filmlere benzer başyapıtları CineBot AI ile keşfedin ve FilmSözlük topluluğuna katılın.',
+      'Sevdiğiniz film ve dizilere benzer başyapıtları CineBot AI ile keşfedin ve FilmSözlük topluluğuna katılın.',
     images: ['/img/og-brand.png'],
   },
   robots: {

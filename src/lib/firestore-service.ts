@@ -462,6 +462,7 @@ export async function fetchSavedMovies(
     const data = d.data();
     return {
       id: Number(data.id ?? d.id),
+      mediaType: data.mediaType === 'tv' ? 'tv' : 'movie',
       title: String(data.title || ''),
       posterPath: typeof data.posterPath === 'string' ? data.posterPath : null,
       voteAverage: typeof data.voteAverage === 'number' ? data.voteAverage : 0,
@@ -484,7 +485,7 @@ export async function isMovieInUserList(
 export async function toggleSavedMovie(
   uid: string,
   listType: 'favorites' | 'watchlist',
-  movie: Pick<MovieSummary, 'id' | 'title' | 'posterPath' | 'voteAverage' | 'year'>
+  movie: Pick<MovieSummary, 'id' | 'mediaType' | 'title' | 'posterPath' | 'voteAverage' | 'year'>
 ): Promise<boolean> {
   const db = requireDb();
   const refDoc = doc(db, 'users', uid, listType, String(movie.id));
@@ -495,6 +496,7 @@ export async function toggleSavedMovie(
   }
   await setDoc(refDoc, {
     id: movie.id,
+    mediaType: movie.mediaType === 'tv' ? 'tv' : 'movie',
     title: movie.title,
     posterPath: movie.posterPath ?? null,
     voteAverage: movie.voteAverage ?? 0,

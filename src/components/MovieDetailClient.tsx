@@ -60,6 +60,7 @@ export function MovieDetailActions({ movie }: { movie: MovieDetail }) {
     try {
       const added = await toggleSavedMovie(user.uid, listType, {
         id: movie.id,
+        mediaType: movie.mediaType === 'tv' ? 'tv' : 'movie',
         title: movie.title,
         posterPath: movie.posterPath,
         voteAverage: movie.voteAverage,
@@ -85,18 +86,20 @@ export function MovieDetailActions({ movie }: { movie: MovieDetail }) {
     }
   };
 
+  const isTv = movie.mediaType === 'tv';
+
   const handleShare = async () => {
     const shareUrl = window.location.href;
     try {
       if (navigator.share) {
         await navigator.share({
           title: `${movie.title} — AiFlix`,
-          text: `${movie.title} (${movie.year}) filmini AiFlix'te incele!`,
+          text: `${movie.title} (${movie.year}) ${isTv ? 'dizisini' : 'filmini'} AiFlix'te incele!`,
           url: shareUrl,
         });
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        showToast('Film bağlantısı panoya kopyalandı.', 'success');
+        showToast(`${isTv ? 'Dizi' : 'Film'} bağlantısı panoya kopyalandı.`, 'success');
       }
     } catch {
       // Kullanıcı iptal etti

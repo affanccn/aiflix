@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { isTmdbConfigured, searchTmdbMovies } from '@/lib/tmdb';
-import { GENRE_SLUG_TO_ID } from '@/lib/genres';
+import { isTmdbConfigured, searchTmdbMedia } from '@/lib/tmdb';
+import { GENRE_SLUG_TO_ID, TV_GENRE_SLUG_TO_ID } from '@/lib/genres';
 import { buildRateLimitHeaders, checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifyRequestUser } from '@/lib/firebase/admin';
 import { sanitizePrompt } from '@/lib/security';
 
 const SearchParamsSchema = z.object({
   q: z.string().max(120).optional().default(''),
+  type: z.enum(['all', 'movie', 'tv']).optional().default('all'),
   genre: z.string().max(30).optional().default('all'),
   year: z
     .string()
@@ -23,7 +24,7 @@ const SearchParamsSchema = z.object({
 export async function GET(request: Request) {
   if (!isTmdbConfigured()) {
     return NextResponse.json(
-      { error: 'Film arama servisi şu an yapılandırılmamış.' },
+      { error: 'Film ve dizi arama servisi şu an yapılandırılmamış.' },
       { status: 503 }
     );
   }
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = SearchParamsSchema.safeParse({
     q: searchParams.get('q') ?? undefined,
+    type: searchParams.get('type') ?? undefined,
     genre: searchParams.get('genre') ?? undefined,
     year: searchParams.get('year') ?? undefined,
     page: searchParams.get('page') ?? undefined,
@@ -65,11 +67,14 @@ export async function GET(request: Request) {
 
   const cleanQuery = sanitizePrompt(parsed.data.q, 120);
   const genreId = GENRE_SLUG_TO_ID[parsed.data.genre] ?? null;
+  const tvGenreId = TV_GENRE_SLUG_TO_ID[parsed.data.genre] ?? genreId;
 
   try {
-    const data = await searchTmdbMovies({
+    const data = await searchTmdbMedia({
       query: cleanQuery,
+      mediaType: parsed.data.type,
       genreId,
+      tvGenreId,
       year: parsed.data.year,
       page: parsed.data.page,
     });

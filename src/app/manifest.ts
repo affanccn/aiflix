@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'AiFlix — Yapay Zeka Film Keşif Platformu',
+    name: 'AiFlix — Yapay Zeka Film & Dizi Keşif Platformu',
     short_name: 'AiFlix',
     description:
-      'Yapay zeka destekli kişiselleştirilmiş film önerileri, haftanın trend filmleri ve FilmSözlük sinema topluluğu.',
+      'Yapay zeka destekli kişiselleştirilmiş film ve dizi önerileri, haftanın trend yapımları ve FilmSözlük topluluğu.',
     start_url: '/',
     display: 'standalone',
     background_color: '#080c16',

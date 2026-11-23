@@ -1,5 +1,9 @@
+export type MediaType = 'movie' | 'tv';
+export type MediaFilter = 'all' | 'movie' | 'tv';
+
 export interface MovieSummary {
   id: number;
+  mediaType?: MediaType;
   title: string;
   originalTitle: string;
   overview: string;
@@ -12,6 +16,8 @@ export interface MovieSummary {
   genreIds?: number[];
   genres?: string[];
   runtime?: number | null;
+  numberOfSeasons?: number | null;
+  numberOfEpisodes?: number | null;
   trailerKey?: string | null;
 }
 
@@ -54,6 +60,7 @@ export interface CineBotRecommendation extends MovieSummary {
 export interface CineBotResponse {
   query: string;
   mode: 'movie' | 'vibe';
+  mediaType?: MediaFilter;
   engine: 'gemini' | 'tmdb_smart';
   originalMovie: MovieSummary | null;
   suggestions: CineBotRecommendation[];
@@ -64,10 +71,12 @@ export interface CineBotHistoryItem {
   id: string;
   query: string;
   mode: 'movie' | 'vibe';
+  mediaType?: MediaFilter;
   genre: string;
   engine: 'gemini' | 'tmdb_smart';
   suggestions: Array<{
     id: number;
+    mediaType?: MediaType;
     title: string;
     posterPath: string | null;
     year: string;
@@ -78,6 +87,7 @@ export interface CineBotHistoryItem {
     director?: string | null;
     trailerKey?: string | null;
     matchHighlights?: string[];
+    numberOfSeasons?: number | null;
   }>;
   createdAt: string;
 }
@@ -111,6 +121,7 @@ export interface ForumComment {
 
 export interface SavedMovie {
   id: number;
+  mediaType?: MediaType;
   title: string;
   posterPath: string | null;
   voteAverage: number;

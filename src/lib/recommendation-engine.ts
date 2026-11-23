@@ -346,19 +346,70 @@ export function extractVibeIntent(prompt: string, requestedGenreId: number | nul
   };
 }
 
+function extractSingleTitleRoot(rawTitle: string): string {
+  const norm = normalizeText(
+    rawTitle
+      .split(':')[0]
+      .split(' - ')[0]
+      .split(' – ')[0]
+  )
+    .replace(/^the\s+/i, '')
+    .replace(/\b(part|chapter|volume|vol|episode|bolum|kisim)\s*[ivx0-9]+\b/gi, '')
+    .replace(/\b(ii|iii|iv|v|vi|vii|viii|ix|x|[1-9]|1[0-9]|20)\b\s*$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return norm.length >= 3 ? norm : normalizeText(rawTitle).replace(/^the\s+/i, '').trim();
+}
+
 /**
  * Seri/franchise adı kökü çıkarır (TMDB belongs_to_collection null olsa bile aynı seriyi yakalar).
  */
 export function extractFranchiseRoot(title: string, originalTitle: string): string {
-  const raw = (originalTitle || title || '').toLowerCase();
-  const base = raw
-    .split(':')[0]
-    .replace(/\b(part|chapter|volume|vol|episode)\s*[ivx0-9]+\b/gi, '')
-    .replace(/\b(ii|iii|iv|v|vi|vii|viii|ix|x|[2-9])\b\s*$/gi, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return base.length >= 4 ? base : normalizeText(raw);
+  const raw = originalTitle || title || '';
+  return extractSingleTitleRoot(raw);
+}
+
+/**
+ * İki yapımın aynı seri/devam filmi olup olmadığını (TMDB collectionId + Türkçe/İngilizce başlık kökü) kesin olarak kontrol eder.
+ * Örn: "Recep İvedik" vs "Recep İvedik 2..7", "The Maze Runner" vs "Maze Runner: The Scorch Trials",
+ * "Labirent: Ölümcül Kaçış" vs "Labirent: Alev Deneyleri".
+ */
+export function isSameFranchiseOrSeries(
+  seed: Pick<RichMovieMetadata, 'collectionId' | 'summary'>,
+  candidate: Pick<RichMovieMetadata, 'collectionId' | 'summary'>
+): boolean {
+  if (seed.collectionId && candidate.collectionId && seed.collectionId === candidate.collectionId) {
+    return true;
+  }
+
+  const seedRoots = Array.from(
+    new Set(
+      [seed.summary.title, seed.summary.originalTitle]
+        .filter(Boolean)
+        .map(extractSingleTitleRoot)
+        .filter((r) => r.length >= 4)
+    )
+  );
+  const candRoots = Array.from(
+    new Set(
+      [candidate.summary.title, candidate.summary.originalTitle]
+        .filter(Boolean)
+        .map(extractSingleTitleRoot)
+        .filter((r) => r.length >= 4)
+    )
+  );
+
+  for (const sr of seedRoots) {
+    for (const cr of candRoots) {
+      if (sr === cr) return true;
+      // Uzun seri köklerinde kelime sınırı önek kontrolü (örn. "recep ivedik" -> "recep ivedik 5")
+      if (sr.length >= 6 && (cr.startsWith(`${sr} `) || sr.startsWith(`${cr} `))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function jaccardRatio<T>(a: T[], b: T[]): number {
@@ -591,10 +642,7 @@ export function computeMovieSimilarity(
     matchHighlights.push('Yakın Dönem & Tempo');
   }
 
-  const isSameSeedCollection =
-    Boolean(seed.collectionId && candidate.collectionId && seed.collectionId === candidate.collectionId) ||
-    extractFranchiseRoot(seed.summary.title, seed.summary.originalTitle) ===
-      extractFranchiseRoot(candidate.summary.title, candidate.summary.originalTitle);
+  const isSameSeedCollection = isSameFranchiseOrSeries(seed, candidate);
 
   return {
     metadata: candidate,
@@ -765,12 +813,14 @@ export function selectDiverseRecommendations(
   const maxCount = options.maxCount ?? 6;
   const minSimilarityScore = options.minSimilarityScore ?? 48;
 
-  // Alaka eşiği altındaki adayları kesin olarak ele
-  const eligible = candidates.filter((c) => c.similarityScore >= minSimilarityScore);
+  // Alaka eşiği altındaki adayları ve aranan yapımın kendi serisindeki devam/ön filmlerini KESİN olarak ele
+  const eligible = candidates.filter(
+    (c) => !c.isSameSeedCollection && c.similarityScore >= minSimilarityScore
+  );
   if (eligible.length === 0) return [];
 
   const selected: ScoredCandidate[] = [];
-  const usedMovieIds = new Set<number>();
+  const usedKeys = new Set<string>();
   const usedCollectionIds = new Set<number>();
   const usedFranchiseRoots = new Set<string>();
   const directorCounts = new Map<string, number>();
@@ -785,9 +835,10 @@ export function selectDiverseRecommendations(
 
     for (let i = 0; i < remaining.length; i++) {
       const cand = remaining[i];
-      if (usedMovieIds.has(cand.metadata.summary.id)) continue;
+      const mediaKey = `${cand.metadata.summary.mediaType || 'movie'}:${cand.metadata.summary.id}`;
+      if (usedKeys.has(mediaKey)) continue;
 
-      // Aynı koleksiyon / seri kuralı: aynı seriden en fazla 1 film
+      // Aynı koleksiyon / seri kuralı: aynı seriden en fazla 1 yapım
       if (cand.metadata.collectionId && usedCollectionIds.has(cand.metadata.collectionId)) {
         continue;
       }
@@ -799,18 +850,13 @@ export function selectDiverseRecommendations(
         continue;
       }
 
-      // Aynı yönetmen kuralı: bir yönetmenden en fazla 1 film
+      // Aynı yönetmen kuralı: bir yönetmenden en fazla 1 yapım
       const primaryDirector = cand.metadata.directorNames[0]?.toLowerCase() || '';
       if (primaryDirector && (directorCounts.get(primaryDirector) || 0) >= 1) {
         continue;
       }
 
       let effective = cand.similarityScore;
-
-      // Seçilen filmin kendi serisinin devam/ön filmlerine hafif öncelik kırpma (farklı filmler öne çıksın)
-      if (cand.isSameSeedCollection) {
-        effective -= 12;
-      }
 
       // Tür çeşitliliği dengesi: aynı tür kombinasyonu veya ana tür üst üste yığılıyorsa çeşitliliği ödüllendir
       const primaryGenre = cand.metadata.genres[0] || '';
@@ -840,7 +886,7 @@ export function selectDiverseRecommendations(
 
     const chosen = remaining.splice(bestIdx, 1)[0];
     selected.push(chosen);
-    usedMovieIds.add(chosen.metadata.summary.id);
+    usedKeys.add(`${chosen.metadata.summary.mediaType || 'movie'}:${chosen.metadata.summary.id}`);
     if (chosen.metadata.collectionId) {
       usedCollectionIds.add(chosen.metadata.collectionId);
     }

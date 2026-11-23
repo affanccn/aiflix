@@ -195,8 +195,8 @@ export function ProfileClient() {
         {items.map((movie) => {
           const poster = getTmdbImageUrl(movie.posterPath, 'w342');
           return (
-            <article key={movie.id} className="movie-card">
-              <Link href={`/movie/${movie.id}`}>
+            <article key={`${movie.mediaType || 'movie'}-${movie.id}`} className="movie-card">
+              <Link href={movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`}>
                 <div className="movie-poster-wrap">
                   {poster ? (
                     <Image
@@ -217,7 +217,7 @@ export function ProfileClient() {
                 </div>
               </Link>
               <div className="movie-card-body">
-                <Link href={`/movie/${movie.id}`}>
+                <Link href={movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`}>
                   <h3 className="movie-card-title">{movie.title}</h3>
                 </Link>
                 <button

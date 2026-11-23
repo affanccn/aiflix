@@ -5,6 +5,7 @@ import {
   computeVibeSimilarity,
   extractVibeIntent,
   finalizeRecommendations,
+  isSameFranchiseOrSeries,
   selectDiverseRecommendations,
 } from '@/lib/recommendation-engine';
 
@@ -362,5 +363,146 @@ describe('Çok Boyutlu Film Öneri Algoritması', () => {
 
     expect(brScore.similarityScore).toBeGreaterThan(animScore.similarityScore + 25);
     expect(animScore.similarityScore).toBeLessThan(45);
+  });
+
+  it('aranan filmin kendi serisindeki devam filmlerini (Recep İvedik, Maze Runner vb.) kesin olarak eler', () => {
+    const recep1 = makeMeta({
+      id: 1001,
+      title: 'Recep İvedik',
+      summary: {
+        id: 1001,
+        title: 'Recep İvedik',
+        originalTitle: 'Recep İvedik',
+        overview: 'Komedi filmi.',
+        posterPath: '/r1.jpg',
+        backdropPath: null,
+        releaseDate: '2008-02-22',
+        year: '2008',
+        voteAverage: 6.2,
+        voteCount: 500,
+        genreIds: [35],
+        genres: ['Komedi'],
+      },
+      collectionId: 5001,
+      keywordIds: [101, 102],
+      keywordNames: ['comedy', 'slapstick'],
+    });
+    const recep2 = makeMeta({
+      id: 1002,
+      title: 'Recep İvedik 2',
+      summary: {
+        id: 1002,
+        title: 'Recep İvedik 2',
+        originalTitle: 'Recep İvedik 2',
+        overview: 'Komedi filmi.',
+        posterPath: '/r2.jpg',
+        backdropPath: null,
+        releaseDate: '2009-02-13',
+        year: '2009',
+        voteAverage: 6.1,
+        voteCount: 450,
+        genreIds: [35],
+        genres: ['Komedi'],
+      },
+      collectionId: null, // collectionId null olsa bile başlık kökünden yakalamalı!
+      keywordIds: [101, 102],
+      keywordNames: ['comedy', 'slapstick'],
+    });
+    const recep5 = makeMeta({
+      id: 1005,
+      title: 'Recep İvedik 5',
+      summary: {
+        id: 1005,
+        title: 'Recep İvedik 5',
+        originalTitle: 'Recep İvedik 5',
+        overview: 'Komedi filmi.',
+        posterPath: '/r5.jpg',
+        backdropPath: null,
+        releaseDate: '2017-02-16',
+        year: '2017',
+        voteAverage: 5.8,
+        voteCount: 400,
+        genreIds: [35],
+        genres: ['Komedi'],
+      },
+      collectionId: 5001,
+      keywordIds: [101, 102],
+      keywordNames: ['comedy', 'slapstick'],
+    });
+    const differentComedy = makeMeta({
+      id: 1099,
+      title: 'Kolpaçino',
+      directorNames: ['Atıl İnaç'],
+      summary: {
+        id: 1099,
+        title: 'Kolpaçino',
+        originalTitle: 'Kolpaçino',
+        overview: 'Farklı bir Türk komedi filmi.',
+        posterPath: '/k1.jpg',
+        backdropPath: null,
+        releaseDate: '2009-10-29',
+        year: '2009',
+        voteAverage: 6.7,
+        voteCount: 300,
+        genreIds: [35],
+        genres: ['Komedi'],
+      },
+      collectionId: 9001,
+      keywordIds: [101, 102],
+      keywordNames: ['comedy', 'slapstick'],
+    });
+
+    expect(isSameFranchiseOrSeries(recep1, recep2)).toBe(true);
+    expect(isSameFranchiseOrSeries(recep1, recep5)).toBe(true);
+    expect(isSameFranchiseOrSeries(recep1, differentComedy)).toBe(false);
+
+    const maze1 = makeMeta({
+      id: 198663,
+      title: 'Labirent: Ölümcül Kaçış',
+      summary: {
+        id: 198663,
+        title: 'Labirent: Ölümcül Kaçış',
+        originalTitle: 'The Maze Runner',
+        overview: 'Labirentte hayatta kalma.',
+        posterPath: '/m1.jpg',
+        backdropPath: null,
+        releaseDate: '2014-09-19',
+        year: '2014',
+        voteAverage: 7.2,
+        voteCount: 16000,
+        genreIds: [28, 878, 9648],
+        genres: ['Aksiyon', 'Bilim Kurgu', 'Gizem'],
+      },
+      collectionId: 295130,
+    });
+    const maze2 = makeMeta({
+      id: 294254,
+      title: 'Labirent: Alev Deneyleri',
+      summary: {
+        id: 294254,
+        title: 'Labirent: Alev Deneyleri',
+        originalTitle: 'Maze Runner: The Scorch Trials',
+        overview: 'Devam filmi.',
+        posterPath: '/m2.jpg',
+        backdropPath: null,
+        releaseDate: '2015-09-18',
+        year: '2015',
+        voteAverage: 6.7,
+        voteCount: 10000,
+        genreIds: [28, 878, 53],
+        genres: ['Aksiyon', 'Bilim Kurgu', 'Gerilim'],
+      },
+      collectionId: null, // collectionId olmasa bile "Labirent" ve "Maze Runner" kökünden yakalanmalı
+    });
+
+    expect(isSameFranchiseOrSeries(maze1, maze2)).toBe(true);
+
+    const scored = [
+      computeMovieSimilarity(recep1, recep2, { fromGemini: true, geminiSemanticScore: 95 }),
+      computeMovieSimilarity(recep1, recep5, { fromGemini: true, geminiSemanticScore: 94 }),
+      computeMovieSimilarity(recep1, differentComedy, { fromGemini: true, geminiSemanticScore: 78 }),
+    ];
+    const selected = selectDiverseRecommendations(scored, { maxCount: 6, minSimilarityScore: 48 });
+    expect(selected.map((s) => s.metadata.summary.id)).toEqual([1099]);
   });
 });

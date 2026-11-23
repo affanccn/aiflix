@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star, Sparkles, Film } from 'lucide-react';
+import { Star, Sparkles, Film, Tv } from 'lucide-react';
 import { getTmdbImageUrl } from '@/lib/security';
 import type { MovieSummary } from '@/types';
 
@@ -13,12 +13,17 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, priority = false }: MovieCardProps) {
+  const isTv = movie.mediaType === 'tv';
+  const detailHref = isTv ? `/tv/${movie.id}` : `/movie/${movie.id}`;
   const posterUrl = getTmdbImageUrl(movie.posterPath, 'w342');
   const genresText = (movie.genres || []).slice(0, 2).join(' • ');
 
   return (
     <article className="movie-card">
-      <Link href={`/movie/${movie.id}`} aria-label={`${movie.title} film detayları`}>
+      <Link
+        href={detailHref}
+        aria-label={`${movie.title} ${isTv ? 'dizi' : 'film'} detayları`}
+      >
         <div className="movie-poster-wrap">
           {posterUrl ? (
             <Image
@@ -31,7 +36,7 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
             />
           ) : (
             <div className="movie-poster-placeholder">
-              <Film size={28} aria-hidden="true" />
+              {isTv ? <Tv size={28} aria-hidden="true" /> : <Film size={28} aria-hidden="true" />}
               <span>Afiş bulunamadı</span>
             </div>
           )}
@@ -44,11 +49,17 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
           )}
 
           {movie.year && <span className="movie-year-badge">{movie.year}</span>}
+
+          {isTv && (
+            <span className="movie-type-badge" aria-label="Dizi">
+              <Tv size={11} aria-hidden="true" /> Dizi
+            </span>
+          )}
         </div>
       </Link>
 
       <div className="movie-card-body">
-        <Link href={`/movie/${movie.id}`}>
+        <Link href={detailHref}>
           <h3 className="movie-card-title" title={movie.title}>
             {movie.title}
           </h3>
@@ -56,7 +67,7 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
         {genresText && <div className="movie-card-genres">{genresText}</div>}
         <div className="movie-card-footer">
           <Link
-            href={`/cinebot?movie=${encodeURIComponent(movie.title)}`}
+            href={`/cinebot?movie=${encodeURIComponent(movie.title)}&mediaType=${isTv ? 'tv' : 'all'}`}
             className="movie-card-cta"
           >
             <Sparkles size={13} aria-hidden="true" />

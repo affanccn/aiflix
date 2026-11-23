@@ -6,7 +6,7 @@ import { Search, SlidersHorizontal, RotateCcw, Film, ChevronLeft, ChevronRight }
 import { MovieCard, MovieCardSkeleton } from '@/components/MovieCard';
 import { GENRE_OPTIONS } from '@/lib/genres';
 import { useAuth } from '@/context/AuthContext';
-import type { MovieSummary } from '@/types';
+import type { MediaFilter, MovieSummary } from '@/types';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 65 }, (_, i) => CURRENT_YEAR - i);
@@ -16,7 +16,12 @@ export function SearchClient() {
   const searchParams = useSearchParams();
   const { getIdToken } = useAuth();
 
+  const initialTypeParam = searchParams.get('type');
+  const initialType: MediaFilter =
+    initialTypeParam === 'movie' || initialTypeParam === 'tv' ? initialTypeParam : 'all';
+
   const [query, setQuery] = useState(searchParams.get('q') || '');
+  const [mediaType, setMediaType] = useState<MediaFilter>(initialType);
   const [genre, setGenre] = useState(searchParams.get('genre') || 'all');
   const [year, setYear] = useState(searchParams.get('year') || '');
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
@@ -29,22 +34,30 @@ export function SearchClient() {
 
   useEffect(() => {
     const nextQ = searchParams.get('q') || '';
+    const rawType = searchParams.get('type');
+    const nextType: MediaFilter =
+      rawType === 'movie' || rawType === 'tv' ? rawType : 'all';
     const nextGenre = searchParams.get('genre') || 'all';
     const nextYear = searchParams.get('year') || '';
     const nextPage = Number(searchParams.get('page')) || 1;
     setQuery(nextQ);
+    setMediaType(nextType);
     setGenre(nextGenre);
     setYear(nextYear);
     setPage(nextPage);
   }, [searchParams]);
 
-  const fetchMovies = useCallback(
-    async (opts: { q: string; genre: string; year: string; page: number }, signal?: AbortSignal) => {
+  const fetchMedia = useCallback(
+    async (
+      opts: { q: string; type: MediaFilter; genre: string; year: string; page: number },
+      signal?: AbortSignal
+    ) => {
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams();
         if (opts.q.trim()) params.set('q', opts.q.trim());
+        params.set('type', opts.type);
         if (opts.genre && opts.genre !== 'all') params.set('genre', opts.genre);
         if (opts.year) params.set('year', opts.year);
         params.set('page', String(opts.page));
@@ -81,23 +94,31 @@ export function SearchClient() {
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetchMovies({ q: query, genre, year, page }, controller.signal);
+      fetchMedia({ q: query, type: mediaType, genre, year, page }, controller.signal);
     }, 350);
 
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, genre, year, page, fetchMovies]);
+  }, [query, mediaType, genre, year, page, fetchMedia]);
 
-  const updateUrl = (next: { q?: string; genre?: string; year?: string; page?: number }) => {
+  const updateUrl = (next: {
+    q?: string;
+    type?: MediaFilter;
+    genre?: string;
+    year?: string;
+    page?: number;
+  }) => {
     const params = new URLSearchParams();
     const qVal = next.q !== undefined ? next.q : query;
+    const tVal = next.type !== undefined ? next.type : mediaType;
     const gVal = next.genre !== undefined ? next.genre : genre;
     const yVal = next.year !== undefined ? next.year : year;
     const pVal = next.page !== undefined ? next.page : 1;
 
     if (qVal.trim()) params.set('q', qVal.trim());
+    if (tVal && tVal !== 'all') params.set('type', tVal);
     if (gVal && gVal !== 'all') params.set('genre', gVal);
     if (yVal) params.set('year', yVal);
     if (pVal > 1) params.set('page', String(pVal));
@@ -112,25 +133,25 @@ export function SearchClient() {
         <div>
           <h1 className="section-title">
             <Search size={26} color="#ff6b08" aria-hidden="true" />
-            Film Keşfet &amp; Ara
+            Film &amp; Dizi Keşfet &amp; Ara
           </h1>
           <p className="section-subtitle">
-            TMDB arşivinde film adı, tür ve vizyon yılına göre anlık filtreleme yapın
+            TMDB arşivinde film ve dizileri ad, içerik türü, kategori ve yayın yılına göre anlık filtreleyin
           </p>
         </div>
       </div>
 
       <div className="surface-card mb-28">
-        <div className="cinebot-controls-grid mb-0">
+        <div className="search-controls-grid mb-0">
           <div className="form-field mb-0">
             <label htmlFor="search-query-input" className="form-label">
-              Film Adı
+              Film veya Dizi Adı
             </label>
             <input
               id="search-query-input"
               type="search"
               className="form-input"
-              placeholder="Film adı yazın (Örn: Başlangıç, Parasite, Dune)..."
+              placeholder="Film veya dizi yazın (Örn: Başlangıç, Breaking Bad, Dark)..."
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -142,9 +163,30 @@ export function SearchClient() {
           </div>
 
           <div className="form-field mb-0">
+            <label htmlFor="search-type-select" className="form-label">
+              İçerik Türü
+            </label>
+            <select
+              id="search-type-select"
+              className="form-select"
+              value={mediaType}
+              onChange={(e) => {
+                const val = e.target.value as MediaFilter;
+                setMediaType(val);
+                setPage(1);
+                updateUrl({ type: val, page: 1 });
+              }}
+            >
+              <option value="all">Tümü (Film &amp; Dizi)</option>
+              <option value="movie">Sadece Filmler</option>
+              <option value="tv">Sadece Diziler</option>
+            </select>
+          </div>
+
+          <div className="form-field mb-0">
             <label htmlFor="search-genre-select" className="form-label">
               <SlidersHorizontal size={14} className="icon-inline" />
-              Tür Filtresi
+              Kategori
             </label>
             <select
               id="search-genre-select"
@@ -166,7 +208,7 @@ export function SearchClient() {
 
           <div className="form-field mb-0">
             <label htmlFor="search-year-select" className="form-label">
-              Vizyon Yılı
+              Yayın Yılı
             </label>
             <select
               id="search-year-select"
@@ -194,14 +236,15 @@ export function SearchClient() {
           <span>
             {query.trim()
               ? `"${query.trim()}" için ${totalResults.toLocaleString('tr-TR')} sonuç bulundu`
-              : `Popüler filmler listeleniyor (${totalResults.toLocaleString('tr-TR')} kayıt)`}
+              : `Popüler ${mediaType === 'tv' ? 'diziler' : mediaType === 'movie' ? 'filmler' : 'film ve diziler'} listeleniyor (${totalResults.toLocaleString('tr-TR')} kayıt)`}
           </span>
-          {(query || genre !== 'all' || year) && (
+          {(query || mediaType !== 'all' || genre !== 'all' || year) && (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => {
                 setQuery('');
+                setMediaType('all');
                 setGenre('all');
                 setYear('');
                 setPage(1);
@@ -228,7 +271,7 @@ export function SearchClient() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => fetchMovies({ q: query, genre, year, page })}
+            onClick={() => fetchMedia({ q: query, type: mediaType, genre, year, page })}
           >
             <RotateCcw size={15} /> Tekrar Dene
           </button>
@@ -236,7 +279,7 @@ export function SearchClient() {
       ) : results.length === 0 ? (
         <div className="state-box">
           <Film size={40} color="#8b9ab8" aria-hidden="true" />
-          <h2 className="state-box-title">Eşleşen film bulunamadı</h2>
+          <h2 className="state-box-title">Eşleşen film veya dizi bulunamadı</h2>
           <p className="state-box-text">
             Farklı bir yazım deneyin, yıl/tür filtresini gevşetin veya CineBot AI&apos;dan ruh
             halinize göre öneri isteyin.
@@ -246,7 +289,7 @@ export function SearchClient() {
         <>
           <div className="movies-grid-5">
             {results.map((movie) => (
-              <MovieCard key={movie.id} movie={movie} />
+              <MovieCard key={`${movie.mediaType || 'movie'}-${movie.id}`} movie={movie} />
             ))}
           </div>
 
