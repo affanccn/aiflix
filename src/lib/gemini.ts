@@ -7,6 +7,8 @@ import {
   getRichMovieMetadata,
   getRichTvMetadata,
   getSpecificKeywordIds,
+  quickSearchVibeMedia,
+  searchTmdbKeywordIds,
   type RichMovieMetadata,
 } from '@/lib/tmdb';
 import { GENRE_ID_TO_NAME, GENRE_SLUG_TO_ID, TV_GENRE_SLUG_TO_ID } from '@/lib/genres';
@@ -136,7 +138,7 @@ async function queryGeminiStructured(params: {
   const modeInstruction =
     params.mode === 'movie'
       ? `Kullanıcı "${params.seedMedia?.summary.title || params.query}" yapımına GERÇEKTEN benzeyen farklı yapımlar arıyor. Bu yapımın kendisini ve aynı serideki devam/ön filmlerini KESİNLİKLE önerme.`
-      : `Kullanıcı şu ruh hali/tema/hikâye arayışında: "${params.query}".`;
+      : `Kullanıcı ruh haline/temasına göre şu kısa veya serbest ifadeyi yazdı: "${params.query}". İfade sadece 1-2 kelime bile olsa (örn. "korkan çocuk", "girls", "ters köşe") kullanıcının kastettiği atmosferi, karakter tipini, duyguyu veya hikâyeyi yaratıcı biçimde yorumla ve tam olarak bu hisse karşılık gelen yapımlar seç.`;
 
   const genreInstruction = params.genreLabel
     ? `Kullanıcı özellikle "${params.genreLabel}" türüne odaklanmak istiyor; öneriler bu türle uyumlu olsun.`
@@ -176,7 +178,7 @@ async function queryGeminiStructured(params: {
       }
 
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const response = await fetch(endpoint, {
+      let response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -185,6 +187,20 @@ async function queryGeminiStructured(params: {
           generationConfig,
         }),
       });
+
+      if (response.status === 400 && generationConfig.thinkingConfig) {
+        const retryConfig = { ...generationConfig };
+        delete retryConfig.thinkingConfig;
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: retryConfig,
+          }),
+        });
+      }
 
       if (!response.ok) {
         console.warn(`[CineBot] Gemini (${model}) HTTP ${response.status}`);
@@ -202,7 +218,13 @@ async function queryGeminiStructured(params: {
         parts[0]?.text;
       if (!rawText) continue;
 
-      const json = JSON.parse(rawText);
+      const cleanedText = rawText
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const json = JSON.parse(cleanedText);
       const validated = GeminiResponseSchema.safeParse(json);
       if (!validated.success) {
         console.warn(`[CineBot] Gemini (${model}) çıktısı Zod doğrulamasından geçemedi:`, validated.error.issues);
@@ -261,7 +283,20 @@ export async function generateCineBotRecommendations(params: {
   const wantMovies = requestedMediaType === 'all' || requestedMediaType === 'movie';
   const wantTv = requestedMediaType === 'all' || requestedMediaType === 'tv';
 
-  // 2) Gemini semantik adayları + TMDB tematik film/dizi keşfini paralel çalıştır
+  // 2) Vibe modunda kısa/serbest ifadeler için TMDB canlı keyword araması + doğrudan başlık aramasını paralel hazırla
+  const [liveVibeKeywordIds, directVibeMatches] =
+    effectiveMode === 'vibe' && vibeIntent
+      ? await Promise.all([
+          searchTmdbKeywordIds(vibeIntent.searchTermsEn, 6),
+          quickSearchVibeMedia(cleanQuery, requestedMediaType),
+        ])
+      : [[], []];
+
+  const mergedVibeKeywordIds = vibeIntent
+    ? Array.from(new Set([...vibeIntent.inferredKeywordIds, ...liveVibeKeywordIds])).slice(0, 6)
+    : [];
+
+  // 3) Gemini semantik adayları + TMDB tematik film/dizi keşfini paralel çalıştır
   const [geminiItems, movieDiscoverPool, tvDiscoverPool] = await Promise.all([
     queryGeminiStructured({
       query: cleanQuery,
@@ -283,12 +318,12 @@ export async function generateCineBotRecommendations(params: {
           })
         : effectiveMode === 'vibe' && vibeIntent
           ? discoverMoviesBySignals({
-              keywordIds: vibeIntent.inferredKeywordIds,
+              keywordIds: mergedVibeKeywordIds,
               genreIds: movieGenreId ? [movieGenreId] : undefined,
               anyGenreIds: !movieGenreId ? vibeIntent.inferredGenreIds.slice(0, 2) : undefined,
               withoutGenreIds: !vibeIntent.wantsAnimation && movieGenreId !== 16 ? [16, 10751] : undefined,
-              minVoteCount: 250,
-              minVoteAverage: 6.3,
+              minVoteCount: 150,
+              minVoteAverage: 6.1,
             })
           : Promise.resolve([])
       : Promise.resolve([]),
@@ -304,11 +339,12 @@ export async function generateCineBotRecommendations(params: {
           })
         : effectiveMode === 'vibe' && vibeIntent
           ? discoverTvBySignals({
-              keywordIds: vibeIntent.inferredKeywordIds,
+              keywordIds: mergedVibeKeywordIds,
               genreIds: tvGenreId ? [tvGenreId] : undefined,
+              anyGenreIds: !tvGenreId && vibeIntent.inferredGenreIds.length > 0 ? vibeIntent.inferredGenreIds.slice(0, 2) : undefined,
               withoutGenreIds: !vibeIntent.wantsAnimation && tvGenreId !== 16 ? [16, 10762] : undefined,
-              minVoteCount: 120,
-              minVoteAverage: 6.6,
+              minVoteCount: 100,
+              minVoteAverage: 6.4,
             })
           : Promise.resolve([])
       : Promise.resolve([]),
@@ -377,6 +413,11 @@ export async function generateCineBotRecommendations(params: {
       toEnrich.push({ id, type });
     }
   };
+
+  // 0) Vibe modunda kısa/serbest ifadelerle doğrudan eşleşen film/diziler (örn. "girls")
+  for (const hit of directVibeMatches) {
+    enqueue(hit.id, hit.type, { fromDirectSearch: true });
+  }
 
   // 1) Tematik Keyword + Tür keşfi (en güçlü alaka sinyali)
   const maxDiscoverMovies = requestedMediaType === 'movie' ? 10 : requestedMediaType === 'all' ? 6 : 0;

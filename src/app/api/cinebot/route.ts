@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     const result = await generateCineBotRecommendations(parsed.data);
     if (result.suggestions.length === 0) {
       return NextResponse.json(
-        { error: 'Bu kriterlere uygun doğrulanmış film önerisi bulunamadı. Farklı bir ifade deneyin.' },
+        { error: 'Bu kriterlere uygun doğrulanmış film veya dizi önerisi bulunamadı. Farklı bir ifade deneyin.' },
         { status: 404, headers: rateHeaders }
       );
     }

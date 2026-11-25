@@ -388,7 +388,7 @@ export function CineBotClient() {
                 placeholder={
                   mode === 'movie'
                     ? 'Örn: Interstellar, Breaking Bad, Dark, Maze Runner...'
-                    : 'Örn: Yağmurlu bir akşamda izlenecek ters köşe yapan gizemli bir yapım...'
+                    : 'Örn: Korkan çocuk, ters köşe, girls, yağmurlu akşamda nostaljik dizi...'
                 }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

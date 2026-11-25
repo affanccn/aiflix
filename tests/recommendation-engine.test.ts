@@ -505,4 +505,31 @@ describe('Çok Boyutlu Film Öneri Algoritması', () => {
     const selected = selectDiverseRecommendations(scored, { maxCount: 6, minSimilarityScore: 48 });
     expect(selected.map((s) => s.metadata.summary.id)).toEqual([1099]);
   });
+
+  it('kısa ve serbest ruh hali ifadelerini ("korkan çocuk", "girls") doğru çözer ve yüksek skor üretir', () => {
+    const korkanCocuk = extractVibeIntent('korkan çocuk', null);
+    expect(korkanCocuk.inferredGenreIds).toContain(27); // Horror
+    expect(korkanCocuk.inferredKeywordIds.length).toBeGreaterThan(0);
+    expect(korkanCocuk.searchTermsEn.length).toBeGreaterThan(0);
+
+    const girlsIntent = extractVibeIntent('girls', null);
+    expect(girlsIntent.inferredGenreIds.length).toBeGreaterThan(0);
+    expect(girlsIntent.searchTermsEn).toContain('girls');
+
+    const sixthSense = makeMeta({
+      id: 745,
+      title: 'Altıncı His',
+      directorNames: ['M. Night Shyamalan'],
+      genres: ['Gizem', 'Gerilim', 'Dram'],
+      genreIds: [9648, 53, 18],
+      keywordIds: [162846, 156091],
+      keywordNames: ['ghost', 'child'],
+      overviewText: 'Hayaletleri gören korkan bir çocuk ve ona yardım eden psikoloğun hikâyesi.',
+    });
+
+    const score = computeVibeSimilarity('korkan çocuk', null, sixthSense, {
+      fromKeywordDiscover: true,
+    });
+    expect(score.similarityScore).toBeGreaterThanOrEqual(60);
+  });
 });

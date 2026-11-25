@@ -1143,3 +1143,89 @@ export async function discoverTvBySignals(params: {
     return [];
   }
 }
+
+export async function searchTmdbKeywordIds(terms: string[], limit = 6): Promise<number[]> {
+  const cleanTerms = Array.from(
+    new Set(
+      terms
+        .map((t) => t.trim().toLowerCase())
+        .filter((t) => t.length >= 3)
+    )
+  ).slice(0, 4);
+
+  if (cleanTerms.length === 0) return [];
+
+  const responses = await Promise.all(
+    cleanTerms.map(async (term) => {
+      try {
+        const data = await tmdbFetch<{ results?: Array<{ id: number; name: string }> }>(
+          '/search/keyword',
+          { query: term, page: 1 },
+          3600
+        );
+        return (data.results || []).slice(0, 3).map((k) => k.id);
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  const ids = new Set<number>();
+  for (const list of responses) {
+    for (const id of list) {
+      if (id) ids.add(id);
+      if (ids.size >= limit) break;
+    }
+    if (ids.size >= limit) break;
+  }
+  return Array.from(ids);
+}
+
+export async function quickSearchVibeMedia(
+  query: string,
+  mediaType: MediaFilter
+): Promise<Array<{ id: number; type: 'movie' | 'tv' }>> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2 || trimmed.split(/\s+/).length > 4) return [];
+
+  const wantMovies = mediaType === 'all' || mediaType === 'movie';
+  const wantTv = mediaType === 'all' || mediaType === 'tv';
+
+  const [movies, tv] = await Promise.all([
+    wantMovies
+      ? tmdbFetch<{ results?: TmdbRawMovie[] }>(
+          '/search/movie',
+          { language: 'tr-TR', query: trimmed, include_adult: 'false', page: 1 },
+          900
+        )
+          .then((d) =>
+            (d.results || [])
+              .filter((m) => m.id && m.poster_path && (m.vote_count || 0) >= 30)
+              .slice(0, 5)
+              .map((m) => ({ id: m.id, type: 'movie' as const }))
+          )
+          .catch(() => [])
+      : Promise.resolve([]),
+    wantTv
+      ? tmdbFetch<{ results?: TmdbRawTv[] }>(
+          '/search/tv',
+          { language: 'tr-TR', query: trimmed, include_adult: 'false', page: 1 },
+          900
+        )
+          .then((d) =>
+            (d.results || [])
+              .filter((t) => t.id && t.poster_path && (t.vote_count || 0) >= 20)
+              .slice(0, 5)
+              .map((t) => ({ id: t.id, type: 'tv' as const }))
+          )
+          .catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  const combined: Array<{ id: number; type: 'movie' | 'tv' }> = [];
+  for (let i = 0; i < Math.max(movies.length, tv.length); i++) {
+    if (movies[i]) combined.push(movies[i]);
+    if (tv[i]) combined.push(tv[i]);
+  }
+  return combined.slice(0, 8);
+}

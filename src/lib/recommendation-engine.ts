@@ -11,6 +11,7 @@ export interface CandidateSignals {
   tmdbRecsRank?: number;
   fromTmdbSimilar?: boolean;
   fromKeywordDiscover?: boolean;
+  fromDirectSearch?: boolean;
 }
 
 export interface ScoredCandidate {
@@ -33,6 +34,7 @@ export interface VibeIntent {
   matchedThemesTr: string[];
   inferredGenreIds: number[];
   inferredKeywordIds: number[];
+  searchTermsEn: string[];
   wantsAnimation: boolean;
 }
 
@@ -227,18 +229,67 @@ const VIBE_INTENT_RULES: VibeRule[] = [
     boostTokens: ['revenge', 'intikam', 'heist', 'soygun', 'gang', 'mafia', 'vengeance'],
   },
   {
-    patterns: [/korku/, /horror/, /doğaüstü/, /hayalet/, /lanet/],
-    themeTr: 'tekinsiz korku ve doğaüstü gizem',
-    genreIds: [27, 9648],
-    keywordIds: [162846, 9853], // ghost, supernatural
-    boostTokens: ['horror', 'korku', 'haunted', 'ghost', 'supernatural', 'demon', 'curse', 'lanet'],
+    patterns: [/kork/, /urper/, /kabus/, /horror/, /scary/, /dogaustu/, /hayalet/, /lanet/, /seytan/, /cin\b/],
+    themeTr: 'tekinsiz korku ve doğaüstü gerilim',
+    genreIds: [27, 9648, 53],
+    keywordIds: [162846, 9853, 15001, 10224], // ghost, supernatural, demon, haunted house
+    boostTokens: ['horror', 'korku', 'korkan', 'fear', 'haunted', 'ghost', 'supernatural', 'demon', 'curse', 'lanet', 'scary', 'nightmare'],
   },
   {
-    patterns: [/savaş/, /tarih/, /epik/, /historical/, /war/],
+    patterns: [/cocuk/, /bebek/, /oglan/, /child/, /kid\b/, /kids/, /boy\b/],
+    themeTr: 'çocuk kahraman ve büyüme hikâyesi',
+    genreIds: [18, 9648, 12],
+    keywordIds: [10683, 6054, 156091], // coming of age, friendship, child
+    boostTokens: ['child', 'children', 'cocuk', 'kid', 'boy', 'girl', 'family', 'aile', 'school', 'okul'],
+  },
+  {
+    patterns: [/kiz\b/, /kizlar/, /girl/, /girls/, /kadin/, /woman/, /women/, /genc/, /lise/, /teen/, /okul/],
+    themeTr: 'gençlik, dostluk ve kadın odaklı anlatı',
+    genreIds: [18, 35, 10749],
+    keywordIds: [10683, 6054, 6270, 9713], // coming of age, friendship, high school
+    boostTokens: ['girl', 'girls', 'kiz', 'woman', 'women', 'kadin', 'teen', 'genc', 'lise', 'school', 'friend', 'friendship', 'dostluk'],
+  },
+  {
+    patterns: [/ask\b/, /romantik/, /sevgi/, /sevgili/, /love/, /romance/, /ayrilik/],
+    themeTr: 'duygusal aşk ve ilişki hikâyesi',
+    genreIds: [10749, 18],
+    keywordIds: [9673, 128], // love, romance
+    boostTokens: ['love', 'romance', 'ask', 'romantik', 'heart', 'relationship', 'couple'],
+  },
+  {
+    patterns: [/komik/, /komedi/, /eglence/, /gul/, /kahkaha/, /comedy/, /funny/],
+    themeTr: 'eğlenceli ve tempolu komedi',
+    genreIds: [35],
+    keywordIds: [6054, 9716], // friendship, stand-up/comedy
+    boostTokens: ['comedy', 'funny', 'komedi', 'komik', 'laugh', 'humor', 'fun'],
+  },
+  {
+    patterns: [/vampir/, /zombi/, /canavar/, /yaratik/, /buyu/, /fantastik/, /ejderha/, /magic/, /fantasy/],
+    themeTr: 'fantastik evren ve doğaüstü kurgu',
+    genreIds: [14, 27, 12],
+    keywordIds: [3133, 12377, 2343], // vampire, zombie, magic
+    boostTokens: ['vampire', 'zombie', 'monster', 'magic', 'fantasy', 'dragon', 'supernatural', 'fantastik', 'buyu'],
+  },
+  {
+    patterns: [/spor/, /futbol/, /basketbol/, /boks/, /yaris/, /araba/, /sport/],
+    themeTr: 'spor tutkusu ve rekabet hikâyesi',
+    genreIds: [18, 28],
+    keywordIds: [6075, 2070], // sports, boxing
+    boostTokens: ['sport', 'football', 'boxing', 'race', 'racing', 'team', 'champion', 'spor', 'futbol', 'yaris'],
+  },
+  {
+    patterns: [/muzik/, /dans/, /sanat/, /ressam/, /sarkici/, /music/],
+    themeTr: 'müzik, sanat ve tutku anlatısı',
+    genreIds: [18, 10402],
+    keywordIds: [4344, 6027], // musical, music
+    boostTokens: ['music', 'song', 'band', 'singer', 'dance', 'art', 'muzik', 'sanat', 'dans'],
+  },
+  {
+    patterns: [/savas/, /tarih/, /epik/, /historical/, /war\b/],
     themeTr: 'tarihsel ve epik anlatım',
     genreIds: [10752, 36, 18],
     keywordIds: [1956, 15060], // world war ii, historical
-    boostTokens: ['war', 'savaş', 'soldier', 'battle', 'history', 'tarih', 'empire', 'epic'],
+    boostTokens: ['war', 'savas', 'soldier', 'battle', 'history', 'tarih', 'empire', 'epic'],
   },
 ];
 
@@ -317,31 +368,40 @@ export function translateKeywordToTurkish(keyword: string): string | null {
 
 export function extractVibeIntent(prompt: string, requestedGenreId: number | null): VibeIntent {
   const lower = prompt.toLowerCase();
+  const ascii = normalizeText(prompt);
   const matchedThemesTr: string[] = [];
   const genreSet = new Set<number>();
   const keywordSet = new Set<number>();
   const boostTokens = new Set<string>(tokenizePlotText(prompt));
+  const searchTermsEn = new Set<string>();
 
   if (requestedGenreId) genreSet.add(requestedGenreId);
 
   for (const rule of VIBE_INTENT_RULES) {
-    if (rule.patterns.some((p) => p.test(lower))) {
+    if (rule.patterns.some((p) => p.test(lower) || p.test(ascii))) {
       matchedThemesTr.push(rule.themeTr);
       for (const gid of rule.genreIds) genreSet.add(gid);
       for (const kid of rule.keywordIds) keywordSet.add(kid);
       for (const bt of rule.boostTokens) boostTokens.add(normalizeText(bt));
+      if (rule.boostTokens[0]) searchTermsEn.add(rule.boostTokens[0]);
     }
+  }
+
+  // Kullanıcının yazdığı orijinal İngilizce/uluslararası kelimeleri de TMDB keyword aramasına ekle (örn. "girls", "cyberpunk")
+  for (const tok of tokenizePlotText(prompt)) {
+    if (tok.length >= 3) searchTermsEn.add(tok);
   }
 
   const wantsAnimation =
     requestedGenreId === 16 ||
-    /animasyon|anime|çizgi|pixar|ghibli|cartoon/i.test(lower);
+    /animasyon|anime|cizgi|pixar|ghibli|cartoon/i.test(ascii);
 
   return {
     tokens: Array.from(boostTokens),
     matchedThemesTr,
     inferredGenreIds: Array.from(genreSet),
     inferredKeywordIds: Array.from(keywordSet),
+    searchTermsEn: Array.from(searchTermsEn).slice(0, 4),
     wantsAnimation,
   };
 }
@@ -707,6 +767,12 @@ export function computeVibeSimilarity(
     100
   );
 
+  const discoverySignalBoost = signals.fromDirectSearch
+    ? 68
+    : signals.fromKeywordDiscover
+      ? 60 + Math.min(18, matchedGenreIds.length * 9)
+      : 0;
+
   const storyAndTheme = signals.fromGemini
     ? clamp(
         Math.round(
@@ -716,7 +782,16 @@ export function computeVibeSimilarity(
         0,
         100
       )
-    : clamp(Math.round(lexicalStoryScore * 0.85 + (matchedGenreIds.length > 0 ? 15 : 0)), 0, 100);
+    : discoverySignalBoost > 0
+      ? clamp(
+          Math.round(
+            Math.max(lexicalStoryScore, discoverySignalBoost * 0.72 + lexicalStoryScore * 0.35) +
+              (matchedGenreIds.length > 0 ? 8 : 0)
+          ),
+          0,
+          100
+        )
+      : clamp(Math.round(lexicalStoryScore * 0.85 + (matchedGenreIds.length > 0 ? 15 : 0)), 0, 100);
 
   let genreAndTone = requestedGenreMatched ? 75 : 35;
   if (intent.inferredGenreIds.length > 0) {
@@ -746,7 +821,14 @@ export function computeVibeSimilarity(
       creativeDna * 0.08
   );
 
-  if (!signals.fromGemini && matchedKeywordIds.length === 0 && textSim.score < 0.06) {
+  const hasVibeEvidence =
+    Boolean(signals.fromGemini) ||
+    Boolean(signals.fromDirectSearch) ||
+    Boolean(signals.fromKeywordDiscover) ||
+    matchedKeywordIds.length > 0 ||
+    textSim.score >= 0.06;
+
+  if (!hasVibeEvidence) {
     overall = Math.min(overall, 42);
   }
   if (animationMismatch) {
